@@ -1,0 +1,1 @@
+"""PyMuPDF4LLM integration."""

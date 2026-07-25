@@ -9,9 +9,9 @@
 
 ## Executive Summary
 
-This specification defines the end-user (applicant) flow for the UAE Social Support Application system. The applicant interacts with a GenAI chatbot through a single conversational session that guides them through application intake, document upload, processing, review, decision delivery, and enablement recommendations.
+This specification defines the end-user (applicant) flow for the UAE Social Support Application system. The applicant authenticates with their Emirates ID, then interacts with a GenAI chatbot that guides them through application intake, document upload, processing, review, decision delivery, and enablement recommendations.
 
-The flow uses a **hybrid structured + conversational** approach: six phases with clear boundaries, where structured phases ensure completeness and conversational phases allow natural interaction. The chatbot is the sole user interface — no separate forms or dashboards.
+The flow uses a **hybrid structured + conversational** approach: seven phases with clear boundaries, where structured phases ensure completeness and conversational phases allow natural interaction. The chatbot is the primary user interface — no separate forms or dashboards.
 
 **Scope**: Applicant-facing flow only. Caseworker review dashboard is out of scope.
 
@@ -19,21 +19,25 @@ The flow uses a **hybrid structured + conversational** approach: six phases with
 
 ## Design Decisions
 
-### Interaction Model: Chat-Only
+### Interaction Model: Emirates ID Login + Chat
 
-**Decision**: Single chat interface using Streamlit's `st.chat_message` + `st.chat_input` with native file upload.
+**Decision**: Emirates ID authentication landing page followed by chat interface using Streamlit's `st.chat_message` + `st.chat_input` with native file upload.
 
 **Rationale**:
+- Emirates ID provides lightweight authentication without password complexity (prototype scope)
+- Enables session persistence tied to applicant identity (survives browser close)
+- Returning applicants can resume in-progress applications
+- Chat remains the primary interface after login — no dashboard complexity
 - The case study explicitly requires a "GenAI Chatbot" for "live interactions"
 - Streamlit 1.60 supports `st.chat_input(accept_file="multiple", file_type=["pdf", "xlsx", "docx", "png", "jpg"])` — native multi-file upload in chat
 - `st.chat_message` containers can hold any Streamlit element (buttons, charts, status indicators)
 - `@st.fragment` enables partial reruns so chat interaction doesn't rerun the entire page
 - `submit_mode="disable"` prevents users from interrupting LLM responses
-- Simplest to implement and demo, aligns with "99% automated in minutes" goal
+- Balances production-readiness (authentication) with prototype simplicity (no password/OTP)
 
 ### Flow Structure: Hybrid Structured + Conversational
 
-**Decision**: Six phases with clear boundaries. Structured phases ensure all required information is collected. Conversational phases allow natural interaction where it matters.
+**Decision**: Seven phases (Phase 0-6) with clear boundaries. Structured phases ensure all required information is collected. Conversational phases allow natural interaction where it matters.
 
 **Rationale**:
 - Pure linear flow is too rigid — applicant may not have all documents ready
@@ -42,21 +46,60 @@ The flow uses a **hybrid structured + conversational** approach: six phases with
 - Maps cleanly to LangGraph's graph structure — each phase is a subgraph with defined entry/exit conditions
 - Demo-friendly — can show both automation and intelligent conversation
 
-### Session Structure: Single Session
+### Session Structure: Emirates ID-Based Persistence
 
-**Decision**: Applicant completes entire application in one conversation. Optional "Check Application Status" feature in sidebar for returning users.
+**Decision**: Applicant authenticates with Emirates ID on a landing page, then completes the application through chat. Session state is tied to the Emirates ID, enabling resume capability across browser sessions.
 
 **Rationale**:
+- Emirates ID provides lightweight authentication without password complexity (prototype scope)
+- Session persistence tied to applicant identity survives browser close
+- Returning applicants can resume in-progress applications
+- Enables multi-application support (applicant can start new application after completing one)
 - Aligns with "99% automated decision-making within minutes" goal
-- LangGraph checkpoint persists state if applicant returns (same browser session)
-- Status check is a lightweight addition (Emirates ID → PostgreSQL query → display result)
-- Multi-session with authentication adds complexity without prototype value
+- Simpler than password/OTP authentication while still providing identity binding
 
 ---
 
 ## High-Level Flow Overview
 
-The applicant journey consists of six phases, each implemented as a LangGraph subgraph.
+The applicant journey consists of seven phases, each implemented as a LangGraph subgraph.
+
+### Phase 0: Authentication (Landing Page)
+
+**Purpose**: Authenticate applicant and determine whether to resume existing application or start new one.
+
+**Flow**:
+1. Applicant sees landing page with Emirates ID input field
+2. Applicant enters Emirates ID number
+3. System validates Luhn checksum (format check only — no password, no OTP)
+4. System queries PostgreSQL for existing applications linked to this Emirates ID:
+   - **New applicant**: Create new applicant record, proceed to Phase 1 (Intake)
+   - **Returning applicant with in-progress application**: Load LangGraph checkpoint, resume conversation from last phase
+   - **Returning applicant with completed application**: Show decision summary in chat, offer options: "Start new application" or "Ask questions about existing application"
+5. After authentication, chat interface loads
+
+**Landing page UI**:
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│   Social Support Application Portal     │
+│                                         │
+│   Enter your Emirates ID to continue:   │
+│                                         │
+│   [ 784-YYYY-NNNNNNN-C ]               │
+│                                         │
+│   [ Continue ]                          │
+│                                         │
+│   Don't have an account? Just enter     │
+│   your Emirates ID to start a new       │
+│   application.                          │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Exit condition**: Emirates ID validated, applicant record created or loaded.
+
+**Agent**: Master Orchestrator (no LLM needed — pure format validation + database lookup).
 
 ### Phase 1: Intake (Structured)
 
@@ -218,11 +261,16 @@ class ApplicantState(TypedDict):
     # Accumulated messages (add_messages reducer)
     messages: Annotated[list[BaseMessage], add_messages]
     
+    # Authentication (populated in Phase 0)
+    is_authenticated: bool
+    login_method: str  # "emirates_id"
+    is_existing_applicant: bool  # True if returning applicant
+    
     # Phase tracking
-    current_phase: str  # "intake" | "document_collection" | "processing" | "review" | "decision" | "enablement"
+    current_phase: str  # "auth" | "intake" | "document_collection" | "processing" | "review" | "decision" | "enablement"
     phase_completed: dict[str, bool]
     
-    # Applicant identity (populated in Phase 1)
+    # Applicant identity (populated in Phase 0 + Phase 1)
     applicant_id: str | None
     identity_number: str | None
     basic_info: dict | None  # name, DOB, nationality, contact, address, marital, family_size, employment, housing, support_category
@@ -253,12 +301,15 @@ class ApplicantState(TypedDict):
 ### Phase Transitions
 
 ```
-START → intake → document_collection → processing → review → decision → enablement → END
-                    ↑                                      |
-                    └────── (if new docs uploaded) ────────┘
+START → auth → intake → document_collection → processing → review → decision → enablement → END
+              ↑                                      |
+              └────── (if new docs uploaded) ────────┘
 ```
 
 **Transition rules**:
+- **Auth → Intake**: Emirates ID validated, new applicant record created
+- **Auth → Intake (resume)**: Emirates ID validated, in-progress application loaded from checkpoint
+- **Auth → Enablement**: Emirates ID validated, completed application — applicant can ask questions
 - **Intake → Document Collection**: All required basic_info fields populated
 - **Document Collection → Processing**: All required documents uploaded (determined by support_category)
 - **Processing → Review**: All documents extracted and validated
@@ -380,7 +431,29 @@ Master Orchestrator (LangGraph)
 
 ### Page Layout
 
-Single-page Streamlit app with three regions:
+The application has two screens: a landing page for authentication, then the chat interface.
+
+**Screen 1: Landing Page (Phase 0)**
+
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│   Social Support Application Portal     │
+│                                         │
+│   Enter your Emirates ID to continue:   │
+│                                         │
+│   [ 784-YYYY-NNNNNNN-C ]               │
+│                                         │
+│   [ Continue ]                          │
+│                                         │
+│   Don't have an account? Just enter     │
+│   your Emirates ID to start a new       │
+│   application.                          │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Screen 2: Chat Interface (Phases 1-6)**
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -395,13 +468,14 @@ Single-page Streamlit app with three regions:
 │   - File upload previews               │  - Docs    │
 │   - Inline buttons (approve/decline)   │    status  │
 │   - Decision card                      │            │
-│   - Enablement recommendations         │  - Status  │
-│                                        │    check   │
+│   - Enablement recommendations         │            │
 │                                        │            │
 ├────────────────────────────────────────┴────────────┤
 │  st.chat_input (bottom, accept_file="multiple")     │
 └─────────────────────────────────────────────────────┘
 ```
+
+**Screen Transition**: After Emirates ID validation on the landing page, the app transitions to the chat interface. The Emirates ID is stored in session state and used to load or create the applicant record.
 
 ### Chat Input Configuration
 
@@ -477,13 +551,14 @@ def chat_fragment():
 
 Sidebar (phase tracker, doc status) lives outside the fragment — it updates on phase transitions only.
 
-### Status Check Feature (Optional)
+### Status Check Feature
 
-Sidebar includes a "Check Application Status" section:
-- Text input for Emirates ID
-- Button "Check Status"
-- Queries PostgreSQL `application_form_data` + `documents` tables
-- Shows: application date, current status, decision (if available)
+The landing page (Phase 0) serves as the status check feature. When a returning applicant enters their Emirates ID:
+- If application is **in progress**: Chat resumes from last checkpoint with message: "Welcome back, [name]. You were [current phase]. Let's continue."
+- If application is **completed**: Chat shows decision summary with options to start new application or ask questions
+- If application is **new**: Chat starts at Phase 1 (Intake)
+
+No separate sidebar status check is needed — the landing page handles all status queries through the Emirates ID lookup.
 
 ---
 
@@ -546,7 +621,7 @@ If the overall application confidence is < 0.80, the decision is "Manual Review"
 
 ### Tech Stack Integration
 
-- **LangGraph 1.2.9**: Orchestrates the 6-phase flow with checkpointed state
+- **LangGraph 1.2.9**: Orchestrates the 7-phase flow with checkpointed state
 - **FastAPI 0.139.2**: REST API for document upload, status queries, and decision retrieval
 - **Streamlit 1.60**: Chat interface with file upload, fragment-based performance
 - **PostgreSQL 17**: Stores applicant data, documents, extraction results, validation results, decisions

@@ -1,0 +1,474 @@
+# Social Support Application - Infrastructure Services
+# Compose Specification (no version key required)
+#
+# Usage:
+#   docker compose up -d          # start all services
+#   docker compose up postgres    # start specific service
+#   docker compose ps             # check status
+#   docker compose logs -f        # follow logs
+#   docker compose down           # stop all
+#   docker compose down -v        # stop all and remove volumes (DESTRUCTIVE)
+#
+# Ollama runs natively on the host (already installed).
+# Containers connect to it via host.docker.internal:11434
+#
+# Security: All secrets should be in .env file (gitignored)
+# Create .env with: POSTGRES_PASSWORD, NEO4J_AUTH
+
+networks:
+  backend:
+    driver: bridge
+    name: xd_backend
+
+services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL - Primary relational database
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: xd_postgres
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:5432:5432"  # Bind to localhost only
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:-social_support}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=postgres"
+      - "com.xd.tier=data"
+
+  # ──────────────────────────────────────────────
+  # Neo4j - Graph database (family relationships, document lineage)
+  # ──────────────────────────────────────────────
+  neo4j:
+    image: neo4j:2026.06.0
+    container_name: xd_neo4j
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:7474:7474"   # Browser UI (localhost only)
+      - "127.0.0.1:7687:7687"   # Bolt protocol (localhost only)
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:?NEO4J_AUTH required}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_memory_heap_max__size: 1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=neo4j"
+      - "com.xd.tier=data"
+
+  # ──────────────────────────────────────────────
+  # Qdrant - Vector database (document embeddings, semantic search)
+  # ──────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.18.3
+    container_name: xd_qdrant
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:6333:6333"   # REST API (localhost only)
+      - "127.0.0.1:6334:6334"   # gRPC (localhost only)
+    volumes:
+      - qdrant_data:/qdrant/storage
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=qdrant"
+      - "com.xd.tier=data"
+
+  # ──────────────────────────────────────────────
+  # Langfuse - LLM observability platform (v4)
+  # ──────────────────────────────────────────────
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    container_name: xd_langfuse_web
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:4000:3000"   # Web UI (localhost only)
+    environment:
+      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://localhost:4000}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?LANGFUSE_NEXTAUTH_SECRET required}
+      DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse}
+      SALT: ${LANGFUSE_SALT:?LANGFUSE_SALT required}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?LANGFUSE_ENCRYPTION_KEY required}
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
+      CLICKHOUSE_MIGRATION_URL: ${LANGFUSE_CLICKHOUSE_MIGRATION_URL:-clickhouse://langfuse-clickhouse:9000}
+      CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL:-http://langfuse-clickhouse:8123}
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?LANGFUSE_CLICKHOUSE_PASSWORD required}
+      CLICKHOUSE_CLUSTER_ENABLED: ${LANGFUSE_CLICKHOUSE_CLUSTER_ENABLED:-false}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_EVENT_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_ACCESS_KEY:?LANGFUSE_S3_SECRET_ACCESS_KEY required}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: ${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT:-http://langfuse-minio:9000}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: ${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_MEDIA_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_ACCESS_KEY:?LANGFUSE_S3_SECRET_ACCESS_KEY required}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:-http://localhost:9090}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: ${LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:-media/}
+      REDIS_HOST: ${LANGFUSE_REDIS_HOST:-langfuse-redis}
+      REDIS_PORT: ${LANGFUSE_REDIS_PORT:-6379}
+      REDIS_AUTH: ${LANGFUSE_REDIS_AUTH:?LANGFUSE_REDIS_AUTH required}
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/public/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=langfuse-web"
+      - "com.xd.tier=observability"
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    container_name: xd_langfuse_worker
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:3030:3030"   # Worker API (localhost only)
+    environment:
+      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://localhost:4000}
+      DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse}
+      SALT: ${LANGFUSE_SALT:?LANGFUSE_SALT required}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?LANGFUSE_ENCRYPTION_KEY required}
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-false}
+      CLICKHOUSE_MIGRATION_URL: ${LANGFUSE_CLICKHOUSE_MIGRATION_URL:-clickhouse://langfuse-clickhouse:9000}
+      CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL:-http://langfuse-clickhouse:8123}
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?LANGFUSE_CLICKHOUSE_PASSWORD required}
+      CLICKHOUSE_CLUSTER_ENABLED: ${LANGFUSE_CLICKHOUSE_CLUSTER_ENABLED:-false}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_EVENT_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_ACCESS_KEY:?LANGFUSE_S3_SECRET_ACCESS_KEY required}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: ${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT:-http://langfuse-minio:9000}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: ${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_MEDIA_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_ACCESS_KEY:?LANGFUSE_S3_SECRET_ACCESS_KEY required}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:-http://localhost:9090}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: ${LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:-media/}
+      REDIS_HOST: ${LANGFUSE_REDIS_HOST:-langfuse-redis}
+      REDIS_PORT: ${LANGFUSE_REDIS_PORT:-6379}
+      REDIS_AUTH: ${LANGFUSE_REDIS_AUTH:?LANGFUSE_REDIS_AUTH required}
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=langfuse-worker"
+      - "com.xd.tier=observability"
+
+  # ──────────────────────────────────────────────
+  # Langfuse PostgreSQL - Dedicated database for Langfuse metadata
+  # ──────────────────────────────────────────────
+  langfuse-postgres:
+    image: postgres:17-alpine
+    container_name: xd_langfuse_postgres
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:5433:5432"   # Bind to localhost only (different port to avoid conflict)
+    environment:
+      POSTGRES_USER: ${LANGFUSE_POSTGRES_USER:-langfuse}
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:?LANGFUSE_POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${LANGFUSE_POSTGRES_DB:-langfuse}
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LANGFUSE_POSTGRES_USER:-langfuse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=langfuse-postgres"
+      - "com.xd.tier=data"
+
+  # ──────────────────────────────────────────────
+  # ClickHouse - Analytics database for Langfuse v4 observation data
+  # ──────────────────────────────────────────────
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    container_name: xd_langfuse_clickhouse
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    user: "101:101"
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:8123:8123"   # HTTP interface (localhost only)
+      - "127.0.0.1:9000:9000"   # Native protocol (localhost only)
+    environment:
+      CLICKHOUSE_DB: ${LANGFUSE_CLICKHOUSE_DB:-default}
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?LANGFUSE_CLICKHOUSE_PASSWORD required}
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=langfuse-clickhouse"
+      - "com.xd.tier=data"
+
+  # ──────────────────────────────────────────────
+  # Redis - Cache and queue for Langfuse
+  # ──────────────────────────────────────────────
+  langfuse-redis:
+    image: redis:7-alpine
+    container_name: xd_langfuse_redis
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:6379:6379"   # Bind to localhost only
+    command: redis-server --requirepass ${LANGFUSE_REDIS_AUTH:?LANGFUSE_REDIS_AUTH required} --maxmemory-policy noeviction
+    volumes:
+      - langfuse_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=langfuse-redis"
+      - "com.xd.tier=data"
+
+  # ──────────────────────────────────────────────
+  # MinIO - S3-compatible object storage for Langfuse events and media
+  # ──────────────────────────────────────────────
+  langfuse-minio:
+    image: minio/minio:latest
+    container_name: xd_langfuse_minio
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:9090:9000"   # API (localhost only)
+      - "127.0.0.1:9091:9001"   # Console (localhost only)
+    environment:
+      MINIO_ROOT_USER: ${LANGFUSE_S3_ACCESS_KEY_ID:-minio}
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_S3_SECRET_ACCESS_KEY:?LANGFUSE_S3_SECRET_ACCESS_KEY required}
+    entrypoint: >
+      /bin/sh -c "
+      mkdir -p /data/langfuse &&
+      minio server --address ':9000' --console-address ':9001' /data
+      "
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.xd.service=langfuse-minio"
+      - "com.xd.tier=data"
+
+volumes:
+  postgres_data:
+    name: xd_postgres_data
+  neo4j_data:
+    name: xd_neo4j_data
+  neo4j_logs:
+    name: xd_neo4j_logs
+  qdrant_data:
+    name: xd_qdrant_data
+  langfuse_postgres_data:
+    name: xd_langfuse_postgres_data
+  langfuse_clickhouse_data:
+    name: xd_langfuse_clickhouse_data
+  langfuse_clickhouse_logs:
+    name: xd_langfuse_clickhouse_logs
+  langfuse_redis_data:
+    name: xd_langfuse_redis_data
+  langfuse_minio_data:
+    name: xd_langfuse_minio_data

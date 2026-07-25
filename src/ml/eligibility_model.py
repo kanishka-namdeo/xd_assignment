@@ -1,0 +1,1 @@
+"""HistGradientBoostingClassifier pipeline wrapper."""

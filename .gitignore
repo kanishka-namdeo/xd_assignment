@@ -1,0 +1,98 @@
+# ====================
+# IDE / Editor
+# ====================
+.cursor/
+.superpowers/
+.idea/
+.vscode/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# ====================
+# OS files
+# ====================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ====================
+# Environment / Secrets
+# ====================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+.streamlit/secrets.toml
+
+# ====================
+# Logs
+# ====================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ====================
+# Temporary / Cache
+# ====================
+*.tmp
+*.temp
+coverage/
+
+# ====================
+# Node.js / Frontend
+# ====================
+node_modules/
+.pnp/
+.pnp.js
+dist/
+build/
+out/
+.next/
+.nuxt/
+*.tsbuildinfo
+
+# ====================
+# Python
+# ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.installed.cfg
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+CACHEDIR.TAG
+
+# ====================
+# ML / Data artifacts
+# ====================
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.pt
+*.onnx
+*.safetensors
+
+# ====================
+# Runtime / Uploads
+# ====================
+uploads/
+
+# ====================
+# DOX framework internals
+# ====================
+.cursors/

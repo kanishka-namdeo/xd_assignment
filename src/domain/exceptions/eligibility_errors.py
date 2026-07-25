@@ -1,0 +1,1 @@
+"""Eligibility-specific exceptions."""

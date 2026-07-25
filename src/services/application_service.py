@@ -1,0 +1,1 @@
+"""Application lifecycle business logic."""

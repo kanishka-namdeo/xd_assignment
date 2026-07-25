@@ -1,0 +1,1 @@
+"""Generic CRUD base repository."""
