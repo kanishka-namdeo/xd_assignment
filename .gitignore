@@ -147,3 +147,4 @@ allure-report/
 # Generated test data
 # ====================
 data/test_applicants/
+evals/data/
