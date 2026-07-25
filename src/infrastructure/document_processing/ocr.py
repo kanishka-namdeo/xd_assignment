@@ -1,6 +1,7 @@
 """OCR engine using PaddleOCR for image text extraction."""
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ from pydantic import ValidationError
 
 from .schemas import OCRResult
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class OCREngine:
@@ -75,15 +76,31 @@ class OCREngine:
         if not image_path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        self.logger.info("extracting_ocr", image_path=str(image_path), language=self.language)
+        start_time = time.monotonic()
+        self.logger.info("ocr_start", image_path=str(image_path), language=self.language)
 
         try:
             result = await asyncio.to_thread(
                 self._extract_sync, image_path, detect_orientation
             )
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.info(
+                "ocr_complete",
+                image_path=str(image_path),
+                duration_ms=round(duration_ms, 2),
+                block_count=len(result.blocks),
+                confidence=round(result.confidence, 4),
+                text_length=len(result.text),
+            )
             return result
         except Exception as e:
-            self.logger.error("ocr_extraction_failed", error=str(e), image_path=str(image_path))
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.exception(
+                "ocr_failed",
+                error=str(e),
+                image_path=str(image_path),
+                duration_ms=round(duration_ms, 2),
+            )
             raise
 
     def _extract_sync(

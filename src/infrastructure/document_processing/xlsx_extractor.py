@@ -1,6 +1,7 @@
 """XLSX extractor using openpyxl for Excel file parsing."""
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -8,7 +9,7 @@ import pandas as pd
 import structlog
 from openpyxl import load_workbook
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class XLSXExtractor:
@@ -52,15 +53,30 @@ class XLSXExtractor:
         if not file_path.exists():
             raise FileNotFoundError(f"Excel file not found: {file_path}")
 
-        self.logger.info("extracting_xlsx", file_path=str(file_path), sheet_name=sheet_name)
+        start_time = time.monotonic()
+        self.logger.info("xlsx_extract_start", file_path=str(file_path), sheet_name=sheet_name)
 
         try:
             result = await asyncio.to_thread(
                 self._extract_sync, file_path, sheet_name, header_row
             )
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.info(
+                "xlsx_extract_complete",
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+                sheet_count=len(result),
+                sheets=list(result.keys()),
+            )
             return result
         except Exception as e:
-            self.logger.error("xlsx_extraction_failed", error=str(e), file_path=str(file_path))
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.exception(
+                "xlsx_extract_failed",
+                error=str(e),
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+            )
             raise
 
     def _extract_sync(
@@ -90,7 +106,8 @@ class XLSXExtractor:
             # Extract each sheet
             for sheet in sheets_to_extract:
                 ws = wb[sheet]
-                
+                self.logger.debug("xlsx_processing_sheet", file_path=str(file_path), sheet=sheet)
+
                 # Read all data
                 data: list[list[Any]] = []
                 for row in ws.iter_rows(values_only=True):

@@ -35,6 +35,51 @@ Validation gates are graph nodes, not separate modules. Use `add_conditional_edg
 - LLM provider switching: `LLM_PROVIDER=ollama` or `LLM_PROVIDER=streamlake`
 - Embeddings always local via Ollama
 
+### Logging Conventions
+All modules must follow structured logging conventions using `structlog`.
+
+**Logger Creation**
+- Use `structlog.get_logger(__name__)` for named loggers in all modules
+- Never use bare `structlog.get_logger()` without `__name__`
+- Never use stdlib `logging.getLogger()` -- use structlog throughout
+
+**Event Naming**
+- Event names use snake_case: `"document_extracted"`, `"node_enter"`, `"request_complete"`
+- Log events, not sentences: `"auth_attempt"`, not `"User attempted authentication"`
+
+**Required Context**
+- Always include relevant IDs: `application_id`, `applicant_id`, `document_id`, `request_id`
+- Always include `duration_ms` for timed operations (service calls, DB queries, LLM calls)
+- Always include counts and status codes where relevant
+
+**PII Safety**
+- Never log PII values directly (identity numbers, names, emails, phone numbers, account numbers)
+- Rely on the PII redaction processor in `src/infrastructure/observability/logging.py`
+- Log only IDs, counts, statuses, and derived values
+
+**Error Handling**
+- Use `logger.exception()` in except blocks -- it captures the full traceback
+- Never use bare `print()` for errors
+- Log error context: what operation failed, what IDs were involved, what the error was
+
+**Timing Requirements**
+- All service methods must log `duration_ms` for their primary operations
+- All DB repository methods must log `duration_ms`
+- All LLM calls must log `duration_ms` and token counts
+- All document processing operations must log `duration_ms`
+
+**Log Levels**
+- `DEBUG`: Per-check results, individual field validations, detailed operation steps
+- `INFO`: Operation start/complete, state transitions, decisions made
+- `WARNING`: Recoverable issues, fallback paths taken, missing optional data
+- `ERROR`: Operation failures, exceptions caught
+
+**Central Configuration**
+- Logging is configured centrally in `src/infrastructure/observability/logging.py`
+- Call `configure_logging()` from the FastAPI lifespan context manager
+- Output format: JSON in production (`LOG_FORMAT=json`), colored console in development (`LOG_FORMAT=console`)
+- Control level with `LOG_LEVEL` env var (default: `INFO`)
+
 ### Data Generation Module
 Synthetic data generation for testing and development. All generators produce schema-compliant output with cross-document consistency.
 

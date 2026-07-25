@@ -1,6 +1,7 @@
 """Table extractor using camelot-py for PDF table extraction."""
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ import structlog
 
 from .schemas import TableExtractionResult
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class TableExtractor:
@@ -54,8 +55,9 @@ class TableExtractor:
         if not file_path.exists():
             raise FileNotFoundError(f"PDF file not found: {file_path}")
 
+        start_time = time.monotonic()
         self.logger.info(
-            "extracting_tables",
+            "table_extract_start",
             file_path=str(file_path),
             pages=pages,
             flavor=self.flavor,
@@ -65,9 +67,24 @@ class TableExtractor:
             result = await asyncio.to_thread(
                 self._extract_sync, file_path, pages, table_areas
             )
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.info(
+                "table_extract_complete",
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+                table_count=result.table_count,
+                confidence=round(result.confidence, 4),
+                flavor=result.flavor,
+            )
             return result
         except Exception as e:
-            self.logger.error("table_extraction_failed", error=str(e), file_path=str(file_path))
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.exception(
+                "table_extract_failed",
+                error=str(e),
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+            )
             raise
 
     def _extract_sync(

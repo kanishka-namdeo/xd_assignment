@@ -14,7 +14,7 @@ from src.config import settings
 from src.infrastructure.db.models.document import Document
 from src.infrastructure.db.repositories.document_repo import DocumentRepository
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 UPLOAD_DIR = Path("uploads")
 
@@ -74,36 +74,54 @@ class DocumentService:
         document_type: str | None = None,
     ) -> Document:
         """Upload a file, compute hash, store on disk, and create DB record."""
-        content = await file.read()
-        file_hash = compute_file_hash(content)
-        file_format = get_file_format(file.filename or "unknown")
-        classified_type = classify_document_type(file.filename or "", document_type)
+        try:
+            content = await file.read()
+            file_hash = compute_file_hash(content)
+            file_format = get_file_format(file.filename or "unknown")
+            classified_type = classify_document_type(file.filename or "", document_type)
 
-        upload_subdir = UPLOAD_DIR / str(applicant_id)
-        upload_subdir.mkdir(parents=True, exist_ok=True)
+            logger.debug(
+                "document_classified",
+                filename=file.filename,
+                declared_type=document_type,
+                classified_type=classified_type,
+                file_format=file_format,
+                file_hash_prefix=file_hash[:16],
+            )
 
-        stored_filename = f"{uuid.uuid4().hex}_{file.filename}"
-        file_path = upload_subdir / stored_filename
-        file_path.write_bytes(content)
+            upload_subdir = UPLOAD_DIR / str(applicant_id)
+            upload_subdir.mkdir(parents=True, exist_ok=True)
 
-        document = await self.repo.create(
-            applicant_id=applicant_id,
-            document_type=classified_type,
-            file_path=str(file_path),
-            file_format=file_format,
-            file_size_bytes=len(content),
-            file_hash=file_hash,
-            processing_status="uploaded",
-        )
+            stored_filename = f"{uuid.uuid4().hex}_{file.filename}"
+            file_path = upload_subdir / stored_filename
+            file_path.write_bytes(content)
 
-        logger.info(
-            "document_uploaded",
-            document_id=str(document.id),
-            applicant_id=str(applicant_id),
-            document_type=classified_type,
-            file_size=len(content),
-        )
-        return document
+            document = await self.repo.create(
+                applicant_id=applicant_id,
+                document_type=classified_type,
+                file_path=str(file_path),
+                file_format=file_format,
+                file_size_bytes=len(content),
+                file_hash=file_hash,
+                processing_status="uploaded",
+            )
+
+            logger.info(
+                "document_uploaded",
+                document_id=str(document.id),
+                applicant_id=str(applicant_id),
+                document_type=classified_type,
+                file_size=len(content),
+            )
+            return document
+        except Exception as e:
+            logger.exception(
+                "document_upload_failed",
+                applicant_id=str(applicant_id),
+                filename=file.filename,
+                error=str(e),
+            )
+            raise
 
     async def get_document(self, document_id: UUID) -> Document | None:
         """Retrieve document metadata by ID."""
@@ -117,6 +135,7 @@ class DocumentService:
         """Delete a document from storage and mark as archived."""
         document = await self.repo.get_by_id(document_id)
         if document is None:
+            logger.warning("document_not_found", document_id=str(document_id))
             return False
 
         file_path = Path(document.file_path)
@@ -137,9 +156,20 @@ class DocumentService:
         validation_status: str | None = None,
     ) -> Document | None:
         """Update document processing pipeline status."""
-        return await self.repo.update_status(
+        result = await self.repo.update_status(
             document_id,
             processing_status=processing_status,
             extraction_status=extraction_status,
             validation_status=validation_status,
         )
+        if result is not None:
+            logger.debug(
+                "processing_status_updated",
+                document_id=str(document_id),
+                processing_status=processing_status,
+                extraction_status=extraction_status,
+                validation_status=validation_status,
+            )
+        else:
+            logger.warning("document_status_update_failed", document_id=str(document_id))
+        return result

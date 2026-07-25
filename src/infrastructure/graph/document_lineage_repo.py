@@ -1,12 +1,15 @@
 """Document lineage graph repository - Neo4j operations for provenance chains."""
 
+import time
 from uuid import UUID
-from datetime import datetime
 
+import structlog
 from neo4j import AsyncDriver, AsyncTransaction
 from neo4j._async.work.result import AsyncResult
 
 from src.infrastructure.graph.models import DocumentNode, HasDocumentRel, SupersedesRel
+
+logger = structlog.get_logger(__name__)
 
 
 class DocumentLineageRepository:
@@ -18,11 +21,17 @@ class DocumentLineageRepository:
     async def link_document_to_applicant(
         self, applicant_id: UUID, document: DocumentNode, rel: HasDocumentRel | None = None
     ) -> None:
-        """Link a :Document node to its :Applicant via :HAS_DOCUMENT."""
+        start = time.perf_counter()
         async with self.driver.session() as session:
             await session.execute_write(
                 self._link_document_tx, applicant_id, document, rel
             )
+        logger.debug(
+            "lineage_document_linked",
+            applicant_id=str(applicant_id),
+            document_id=str(document.id),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
 
     @staticmethod
     async def _link_document_tx(
@@ -48,11 +57,17 @@ class DocumentLineageRepository:
     async def supersede_document(
         self, new_doc_id: UUID, old_doc_id: UUID, rel: SupersedesRel
     ) -> None:
-        """Create a :SUPERSEDES relationship from a new document to an old one."""
+        start = time.perf_counter()
         async with self.driver.session() as session:
             await session.execute_write(
                 self._supersede_tx, new_doc_id, old_doc_id, rel
             )
+        logger.debug(
+            "lineage_document_superseded",
+            new_doc_id=str(new_doc_id),
+            old_doc_id=str(old_doc_id),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
 
     @staticmethod
     async def _supersede_tx(
@@ -74,12 +89,17 @@ class DocumentLineageRepository:
         )
 
     async def get_lineage(self, document_id: UUID) -> dict:
-        """Return the full lineage (supersedes chain) for a document."""
+        start = time.perf_counter()
         async with self.driver.session() as session:
             result = await session.execute_read(
                 self._get_lineage_tx, document_id
             )
-            return result
+        logger.debug(
+            "lineage_retrieved",
+            document_id=str(document_id),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+        return result
 
     @staticmethod
     async def _get_lineage_tx(
@@ -106,12 +126,17 @@ class DocumentLineageRepository:
         }
 
     async def get_validation_history(self, applicant_id: UUID) -> list[dict]:
-        """Return all documents and their validation history for an applicant."""
+        start = time.perf_counter()
         async with self.driver.session() as session:
             result = await session.execute_read(
                 self._get_validation_history_tx, applicant_id
             )
-            return result
+        logger.debug(
+            "lineage_validation_history_retrieved",
+            applicant_id=str(applicant_id),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+        return result
 
     @staticmethod
     async def _get_validation_history_tx(

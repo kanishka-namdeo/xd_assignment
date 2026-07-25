@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.db.models.application import Application
 from src.infrastructure.db.repositories.application_repo import ApplicationRepository
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class ApplicationService:
@@ -40,7 +40,10 @@ class ApplicationService:
 
     async def get_application(self, application_id: UUID) -> Application | None:
         """Retrieve application by ID."""
-        return await self.repo.get_by_id(application_id)
+        application = await self.repo.get_by_id(application_id)
+        if application is None:
+            logger.warning("application_not_found", application_id=str(application_id))
+        return application
 
     async def update_application_status(
         self, application_id: UUID, status: str, phase: str | None = None
@@ -70,7 +73,10 @@ class ApplicationService:
     async def list_applications(self, applicant_id: UUID) -> list[Application]:
         """List all applications for an applicant."""
         application = await self.repo.get_latest_by_applicant(applicant_id)
-        return [application] if application else []
+        if application is None:
+            logger.debug("no_applications_found", applicant_id=str(applicant_id))
+            return []
+        return [application]
 
     async def set_eligibility_score(
         self, application_id: UUID, score: float, factors: dict | None = None
@@ -78,12 +84,20 @@ class ApplicationService:
         """Store eligibility score and contributing factors."""
         application = await self.repo.get_by_id(application_id)
         if application is None:
+            logger.warning("application_not_found", application_id=str(application_id))
             return None
 
         application.eligibility_score = score
         if factors is not None:
             application.eligibility_factors = factors
         await self.repo.update(application)
+
+        logger.info(
+            "eligibility_score_set",
+            application_id=str(application_id),
+            score=score,
+            factor_count=len(factors) if factors else 0,
+        )
         return application
 
     async def set_decision(

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.db.repositories.application_repo import ApplicationRepository
 from src.infrastructure.db.repositories.validation_repo import CrossDocumentValidationRepository
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class DecisionService:
@@ -21,12 +21,15 @@ class DecisionService:
 
     async def make_decision(self, application_id: UUID) -> dict:
         """Make final decision for an application."""
+        start = datetime.now(timezone.utc)
         application = await self.application_repo.get_by_id(application_id)
         if application is None:
+            logger.warning("application_not_found", application_id=str(application_id))
             raise ValueError(f"Application {application_id} not found")
 
         eligibility_score = application.eligibility_score
         if eligibility_score is None:
+            logger.warning("eligibility_not_computed", application_id=str(application_id))
             raise ValueError(f"Eligibility not computed for application {application_id}")
 
         validations = await self.validation_repo.get_by_applicant(application.applicant_id)
@@ -40,11 +43,14 @@ class DecisionService:
         application.decision_explanation = explanation
         await self.application_repo.update(application)
 
+        duration_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         logger.info(
             "decision_made",
             application_id=str(application_id),
             decision=decision,
             eligibility_score=eligibility_score,
+            unresolved_issues=len(unresolved),
+            duration_ms=round(duration_ms, 2),
         )
         return {
             "application_id": str(application_id),
@@ -116,5 +122,20 @@ class DecisionService:
             )
             if has_critical_issues:
                 explanation += "Critical validation issues detected."
+
+        logger.debug(
+            "decision_rule_evaluated",
+            eligibility_score=eligibility_score,
+            decision=decision,
+            has_critical_issues=has_critical_issues,
+            unresolved_count=len(unresolved_validations),
+        )
+
+        if has_critical_issues:
+            logger.warning(
+                "unresolved_validation_issues",
+                unresolved_count=len(unresolved_validations),
+                critical_issues=has_critical_issues,
+            )
 
         return decision, explanation

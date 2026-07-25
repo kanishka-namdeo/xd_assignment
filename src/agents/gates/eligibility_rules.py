@@ -6,14 +6,15 @@ No LLM calls — pure Python, <5ms target per gate invocation.
 
 from __future__ import annotations
 
-import logging
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
+import structlog
+
 from src.utils.emirates_id import validate as emirates_id_validate
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _to_decimal(value: Any) -> Decimal | None:
@@ -206,12 +207,12 @@ def check_hard_eligibility_rules(
     for check_name, check_func in checks:
         try:
             failure = check_func(extracted_data)
+            logger.debug("eligibility_check", event="eligibility_check", check=check_name, passed=failure is None, failure_reason=failure)
             if failure:
-                logger.info("Hard eligibility rule failed: %s - %s", check_name, failure)
                 return False, failure
         except Exception as e:
-            logger.error("Error running eligibility check %s: %s", check_name, e)
+            logger.exception("eligibility_check_error", event="eligibility_check_error", check=check_name, error=str(e))
             return False, f"Error running {check_name}: {e}"
 
-    logger.info("All hard eligibility rules passed")
+    logger.info("eligibility_passed", event="eligibility_passed", checks_completed=len(checks))
     return True, None

@@ -1,11 +1,15 @@
 """Document embedding store - Qdrant vector operations."""
 
+import time
 from uuid import UUID
 
+import structlog
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qdrant_models
 
 from src.infrastructure.vector.client import COLLECTION_NAME, ensure_collection
+
+logger = structlog.get_logger(__name__)
 
 
 class DocumentEmbeddingStore:
@@ -28,6 +32,7 @@ class DocumentEmbeddingStore:
         **extra_payload,
     ) -> None:
         """Upsert a document embedding with payload for filtering."""
+        start = time.perf_counter()
         payload: dict = {
             "applicant_id": applicant_id,
             "document_type": document_type,
@@ -46,6 +51,13 @@ class DocumentEmbeddingStore:
                 )
             ],
         )
+        logger.debug(
+            "embedding_upserted",
+            point_id=str(point_id),
+            document_type=document_type,
+            applicant_id=applicant_id,
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
 
     async def search_by_applicant(
         self,
@@ -55,6 +67,7 @@ class DocumentEmbeddingStore:
         score_threshold: float = 0.0,
     ) -> list[dict]:
         """Search embeddings filtered by applicant_id."""
+        start = time.perf_counter()
         results = await self.client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
@@ -70,10 +83,18 @@ class DocumentEmbeddingStore:
             score_threshold=score_threshold,
             with_payload=True,
         )
-        return [
+        results_list = [
             {"id": r.id, "score": r.score, "payload": r.payload}
             for r in results
         ]
+        logger.debug(
+            "embedding_search_by_applicant",
+            applicant_id=applicant_id,
+            count=len(results_list),
+            limit=limit,
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+        return results_list
 
     async def search_by_document_type(
         self,
@@ -83,6 +104,7 @@ class DocumentEmbeddingStore:
         score_threshold: float = 0.0,
     ) -> list[dict]:
         """Search embeddings filtered by document_type."""
+        start = time.perf_counter()
         results = await self.client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
@@ -98,10 +120,18 @@ class DocumentEmbeddingStore:
             score_threshold=score_threshold,
             with_payload=True,
         )
-        return [
+        results_list = [
             {"id": r.id, "score": r.score, "payload": r.payload}
             for r in results
         ]
+        logger.debug(
+            "embedding_search_by_document_type",
+            document_type=document_type,
+            count=len(results_list),
+            limit=limit,
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+        return results_list
 
     async def search_by_applicant_and_type(
         self,
@@ -112,6 +142,7 @@ class DocumentEmbeddingStore:
         score_threshold: float = 0.0,
     ) -> list[dict]:
         """Search embeddings filtered by both applicant_id and document_type."""
+        start = time.perf_counter()
         results = await self.client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
@@ -131,13 +162,23 @@ class DocumentEmbeddingStore:
             score_threshold=score_threshold,
             with_payload=True,
         )
-        return [
+        results_list = [
             {"id": r.id, "score": r.score, "payload": r.payload}
             for r in results
         ]
+        logger.debug(
+            "embedding_search_by_applicant_and_type",
+            applicant_id=applicant_id,
+            document_type=document_type,
+            count=len(results_list),
+            limit=limit,
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+        return results_list
 
     async def delete_by_applicant(self, applicant_id: str) -> None:
         """Delete all embeddings for an applicant."""
+        start = time.perf_counter()
         await self.client.delete(
             collection_name=COLLECTION_NAME,
             points_selector=qdrant_models.FilterSelector(
@@ -151,9 +192,15 @@ class DocumentEmbeddingStore:
                 )
             ),
         )
+        logger.debug(
+            "embedding_deleted_by_applicant",
+            applicant_id=applicant_id,
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
 
     async def delete_by_document(self, document_id: str) -> None:
         """Delete an embedding for a specific document."""
+        start = time.perf_counter()
         await self.client.delete(
             collection_name=COLLECTION_NAME,
             points_selector=qdrant_models.FilterSelector(
@@ -166,4 +213,9 @@ class DocumentEmbeddingStore:
                     ]
                 )
             ),
+        )
+        logger.debug(
+            "embedding_deleted_by_document",
+            document_id=document_id,
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
         )

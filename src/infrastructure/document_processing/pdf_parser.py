@@ -1,6 +1,7 @@
 """PDF parser using pymupdf4llm for document extraction."""
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ from pydantic import ValidationError
 
 from .schemas import BoundingBox, ExtractedField, ExtractionResult
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class PDFParser:
@@ -54,16 +55,34 @@ class PDFParser:
         if not file_path.exists():
             raise FileNotFoundError(f"PDF file not found: {file_path}")
 
-        self.logger.info("extracting_pdf", file_path=str(file_path), pages=pages)
+        start_time = time.monotonic()
+        self.logger.info("pdf_parse_start", file_path=str(file_path), pages=pages)
 
         try:
             # Run CPU-bound extraction in thread pool
             result = await asyncio.to_thread(
                 self._extract_sync, file_path, pages, extract_tables
             )
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.info(
+                "pdf_parse_complete",
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+                page_count=len(pages) if pages else result.source_coordinates
+                and len(result.source_coordinates)
+                or 0,
+                field_count=len(result.fields),
+                overall_confidence=result.overall_confidence,
+            )
             return result
         except Exception as e:
-            self.logger.error("pdf_extraction_failed", error=str(e), file_path=str(file_path))
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.exception(
+                "pdf_parse_failed",
+                error=str(e),
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+            )
             raise
 
     def _extract_sync(
@@ -199,12 +218,21 @@ class PDFParser:
             Number of pages
         """
         file_path = Path(file_path)
-        
+
         async def _count():
             import pymupdf
             doc = pymupdf.open(str(file_path))
             count = len(doc)
             doc.close()
             return count
-        
-        return await asyncio.to_thread(_count)
+
+        start_time = time.monotonic()
+        count = await asyncio.to_thread(_count)
+        duration_ms = (time.monotonic() - start_time) * 1000
+        self.logger.info(
+            "pdf_page_count",
+            file_path=str(file_path),
+            page_count=count,
+            duration_ms=round(duration_ms, 2),
+        )
+        return count

@@ -1,9 +1,12 @@
 """Qdrant async client setup - singleton pattern."""
 
+import structlog
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
 from src.config import Settings
+
+logger = structlog.get_logger(__name__)
 
 _client: AsyncQdrantClient | None = None
 
@@ -20,6 +23,11 @@ def get_client(settings: Settings) -> AsyncQdrantClient:
             prefer_grpc=settings.QDRANT_PREFER_GRPC,
             grpc_port=settings.QDRANT_GRPC_PORT,
         )
+        logger.info(
+            "qdrant_client_created",
+            url=settings.QDRANT_URL,
+            prefer_grpc=settings.QDRANT_PREFER_GRPC,
+        )
     return _client
 
 
@@ -28,6 +36,7 @@ async def close_client() -> None:
     global _client
     if _client is not None:
         await _client.close()
+        logger.info("qdrant_client_closed")
         _client = None
 
 
@@ -42,4 +51,9 @@ async def ensure_collection(client: AsyncQdrantClient) -> None:
                 size=EMBEDDING_DIM,
                 distance=Distance.COSINE,
             ),
+        )
+        logger.info(
+            "qdrant_collection_created",
+            collection_name=COLLECTION_NAME,
+            vector_dim=EMBEDDING_DIM,
         )

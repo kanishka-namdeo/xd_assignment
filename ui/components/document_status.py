@@ -3,6 +3,9 @@
 from typing import Any
 
 import streamlit as st
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 STATUS_ICONS: dict[str, str] = {
     "uploaded": "✅",
@@ -27,12 +30,18 @@ REQUIRED_DOCS: list[str] = [
 def render_document_status(documents: list[dict[str, Any]] | None) -> None:
     """Render the document checklist in the sidebar."""
     if not documents:
+        logger.debug("document_status_rendered", document_count=0)
         st.subheader("Documents")
         st.caption("No documents uploaded yet.")
         st.markdown("---")
         return
 
     st.subheader("Documents")
+    logger.debug(
+        "document_status_rendered",
+        document_count=len(documents),
+        statuses=[doc.get("status") for doc in documents],
+    )
 
     uploaded_names = {doc.get("doc_type", "").lower(): doc for doc in documents}
 

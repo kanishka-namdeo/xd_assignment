@@ -6,10 +6,11 @@ information is consistent across documents. No LLM calls.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 def _normalize_identity(value: Any) -> str:
@@ -208,10 +209,9 @@ def validate_completeness(
     missing_items.extend(_check_dob_consistency(dobs))
 
     is_complete = len(missing_items) == 0
-    if not is_complete:
-        logger.info(
-            "Completeness validation failed: %d missing item(s)",
-            len(missing_items),
-        )
+    if is_complete:
+        logger.info("completeness_passed", event="completeness_passed", required_count=len(required_documents))
+    else:
+        logger.warning("completeness_failed", event="completeness_failed", missing_count=len(missing_items), missing_items=missing_items)
 
     return is_complete, missing_items

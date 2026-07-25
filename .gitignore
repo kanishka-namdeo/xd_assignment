@@ -134,3 +134,16 @@ allure-report/
 # DOX framework internals
 # ====================
 .cursors/
+
+# ====================
+# Scratch / Ad-hoc scripts
+# ====================
+/check_*.py
+/test_chat*.py
+/test_flow*.py
+/test_graph.py
+
+# ====================
+# Generated test data
+# ====================
+data/test_applicants/

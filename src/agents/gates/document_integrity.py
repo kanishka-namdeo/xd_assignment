@@ -6,14 +6,15 @@ No LLM calls — pure Python, <5ms target per gate invocation.
 
 from __future__ import annotations
 
-import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+import structlog
+
 from src.utils.emirates_id import validate as emirates_id_validate
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _TOLERANCE = Decimal("0.01")
 
@@ -334,10 +335,8 @@ def validate_document_integrity(
         logger.warning("No integrity validator for document_type=%s", document_type)
 
     is_valid = len(errors) == 0
-    if not is_valid:
-        logger.info(
-            "Document integrity failed for %s: %d error(s)",
-            document_type,
-            len(errors),
-        )
+    if is_valid:
+        logger.info("integrity_passed", event="integrity_passed", document_type=document_type)
+    else:
+        logger.warning("integrity_failed", event="integrity_failed", document_type=document_type, error_count=len(errors), errors=errors)
     return is_valid, errors

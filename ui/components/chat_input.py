@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 
@@ -38,5 +41,12 @@ def render_chat_input() -> ChatInputResult | None:
         result.files = [
             {"name": f.name, "size": f.size, "data": f} for f in prompt.files
         ]
+        logger.info(
+            "files_uploaded",
+            file_count=len(result.files),
+            file_types=list({Path(f["name"]).suffix.lstrip(".") for f in result.files}),
+        )
+
+    logger.info("message_submitted", has_files=bool(result.files))
 
     return result

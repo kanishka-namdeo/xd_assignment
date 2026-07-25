@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import time
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -15,7 +16,7 @@ from .schemas import (
     WorkExperienceExtracted,
 )
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
 
 
 class ResumeParser:
@@ -51,13 +52,30 @@ class ResumeParser:
         if not file_path.exists():
             raise FileNotFoundError(f"Resume file not found: {file_path}")
 
-        self.logger.info("parsing_resume", file_path=str(file_path))
+        start_time = time.monotonic()
+        self.logger.info("resume_parse_start", file_path=str(file_path))
 
         try:
             result = await asyncio.to_thread(self._parse_sync, file_path)
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.info(
+                "resume_parse_complete",
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+                work_positions=result.total_positions,
+                education_count=len(result.education),
+                skill_count=result.skill_count,
+                confidence=result.extraction_confidence,
+            )
             return result
         except Exception as e:
-            self.logger.error("resume_parsing_failed", error=str(e), file_path=str(file_path))
+            duration_ms = (time.monotonic() - start_time) * 1000
+            self.logger.exception(
+                "resume_parse_failed",
+                error=str(e),
+                file_path=str(file_path),
+                duration_ms=round(duration_ms, 2),
+            )
             raise
 
     def _parse_sync(self, file_path: Path) -> ResumeExtracted:
@@ -122,6 +140,11 @@ class ResumeParser:
                     industry=exp.get("industry"),
                 )
             )
+        self.logger.debug(
+            "resume_section_extracted",
+            section="work_experience",
+            count=len(work_experience),
+        )
 
         # Extract education
         education = []
@@ -136,6 +159,11 @@ class ResumeParser:
                     gpa=Decimal(str(edu["gpa"])) if edu.get("gpa") else None,
                 )
             )
+        self.logger.debug(
+            "resume_section_extracted",
+            section="education",
+            count=len(education),
+        )
 
         # Determine current employer
         current_position = next((exp for exp in work_experience if exp.is_current), None)

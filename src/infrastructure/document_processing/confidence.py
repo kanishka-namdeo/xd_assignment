@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import structlog
 from pydantic import BaseModel, Field
 
 from .schemas import (
@@ -12,6 +13,8 @@ from .schemas import (
     EmiratesIDExtracted,
     ResumeExtracted,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 class ConfidenceScore(BaseModel):
@@ -99,6 +102,16 @@ class ConfidenceScorer:
             routing = "spot_check"
         else:
             routing = "manual_review"
+
+        self.logger.info(
+            "confidence_scored",
+            document_type=type(extracted_data).__name__,
+            overall_confidence=round(overall, 4),
+            routing_decision=routing,
+            field_count=len(field_confidences),
+            low_confidence_count=len(low_confidence_fields),
+            low_confidence_fields=low_confidence_fields if low_confidence_fields else None,
+        )
 
         return ConfidenceScore(
             overall_confidence=overall,

@@ -6,8 +6,12 @@ from typing import Any
 
 import requests
 import streamlit as st
+import structlog
 
 from ui.components.chat_input import ChatInputResult, render_chat_input
+from ui.components.decision_card import render_decision_card
+
+logger = structlog.get_logger(__name__)
 
 API_BASE = "http://localhost:8000"
 UPLOAD_DIR = Path("data/uploads")
@@ -60,10 +64,14 @@ def _append_user_message(text: str, files: list[dict[str, Any]] | None) -> None:
 
 def _append_assistant_message(response: dict[str, Any]) -> None:
     """Append an assistant message from the API response."""
-    st.session_state.messages.append({
+    entry: dict[str, Any] = {
         "role": "assistant",
         "content": response.get("message", "I received your message."),
-    })
+    }
+    # If the response contains decision data, attach it for rendering
+    if response.get("decision"):
+        entry["decision"] = response["decision"]
+    st.session_state.messages.append(entry)
 
 
 def _handle_submission(result: ChatInputResult) -> None:
@@ -72,6 +80,13 @@ def _handle_submission(result: ChatInputResult) -> None:
     if not application_id:
         st.error("No active application found. Please log in again.")
         return
+
+    logger.info(
+        "user_message_submitted",
+        phase=st.session_state.get("current_phase", "intake"),
+        has_files=bool(result.files),
+        file_count=len(result.files) if result.files else 0,
+    )
 
     _append_user_message(result.text, result.files)
 
@@ -126,6 +141,12 @@ def _handle_submission(result: ChatInputResult) -> None:
     if response.get("uploaded_documents"):
         st.session_state.uploaded_documents = response["uploaded_documents"]
 
+    logger.info(
+        "agent_response_received",
+        phase=response.get("phase", st.session_state.get("current_phase", "intake")),
+        has_decision=bool(response.get("decision")),
+    )
+
     st.rerun()
 
 
@@ -136,11 +157,17 @@ def render_chat_area() -> None:
 
     for msg in messages:
         with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg.get("files"):
-                for f in msg["files"]:
-                    size_kb = round(f.get("size", 0) / 1024, 1)
-                    st.caption(f"📎 {f['name']} ({size_kb} KB)")
+            # Check if this assistant message contains decision data
+            if msg["role"] == "assistant" and msg.get("decision"):
+                render_decision_card(msg["decision"])
+                if msg.get("content"):
+                    st.markdown(msg["content"])
+            else:
+                st.markdown(msg["content"])
+                if msg.get("files"):
+                    for f in msg["files"]:
+                        size_kb = round(f.get("size", 0) / 1024, 1)
+                        st.caption(f"📎 {f['name']} ({size_kb} KB)")
 
     result = render_chat_input()
     if result:

@@ -142,7 +142,7 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 ### `src/` - Application Source Code
 
-Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes → Services → Agents/Domain → Infrastructure. Contains LangGraph agents, FastAPI endpoints, database layer, ML models, and document processing.
+Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes → Services → Agents/Domain → Infrastructure. Contains LangGraph agents, FastAPI endpoints, database layer, ML models, document processing, and synthetic data generation module.
 
 ### `ui/` - Streamlit Frontend
 
@@ -159,6 +159,14 @@ Evaluation framework for agent accuracy and quality. Distinct from unit tests: m
 ### `alembic/` - Database Migrations
 
 SQLAlchemy Alembic migrations for PostgreSQL schema evolution. Tracks changes to applicant, document, application, and extraction tables.
+
+### `data/` - Test Data Storage
+
+Runtime storage for synthetic test applicant data used in development and testing. Contains cross-document-consistent profiles for validating the application workflow.
+
+### `scripts/` - Utility Scripts
+
+Development and operational scripts for data generation and maintenance tasks. Not part of the main application.
 
 ### `docs/` - Documentation
 

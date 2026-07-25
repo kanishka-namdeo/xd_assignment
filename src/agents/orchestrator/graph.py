@@ -1,5 +1,6 @@
 """Master StateGraph definition and compilation."""
 
+import structlog
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
@@ -13,6 +14,8 @@ from src.agents.orchestrator.nodes import (
 )
 from src.agents.orchestrator.routes import route_by_phase
 from src.agents.state import ApplicantState
+
+logger = structlog.get_logger(__name__)
 
 
 def build_orchestrator_graph() -> StateGraph:
@@ -41,4 +44,22 @@ def build_orchestrator_graph() -> StateGraph:
     graph.add_edge("decision", "enablement")
     graph.add_edge("enablement", END)
 
-    return graph.compile(checkpointer=MemorySaver())
+    checkpointer = MemorySaver()
+    compiled = graph.compile(checkpointer=checkpointer)
+
+    logger.info(
+        "graph_compiled",
+        event="graph_compiled",
+        nodes=["intake", "document_collection", "processing", "review", "decision", "enablement"],
+        checkpointer_type=type(checkpointer).__name__,
+    )
+
+    if isinstance(checkpointer, MemorySaver):
+        logger.warning(
+            "checkpointer_warning",
+            event="checkpointer_warning",
+            message="MemorySaver is in-memory only and not suitable for production deployments",
+            checkpointer_type="MemorySaver",
+        )
+
+    return compiled

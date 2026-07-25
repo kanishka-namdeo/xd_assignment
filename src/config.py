@@ -7,8 +7,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "console"
+
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:change_me_to_strong_password@localhost:5432/social_support"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres123@localhost:5432/social_support"
     STATEMENT_TIMEOUT: int = 30000  # milliseconds
 
     # LLM Provider

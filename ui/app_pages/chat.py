@@ -1,6 +1,7 @@
 """Phases 1-6: Chat-based application interface."""
 
 import streamlit as st
+import structlog
 
 from ui.components.chat_input import render_chat_input
 from ui.components.document_status import (
@@ -9,6 +10,8 @@ from ui.components.document_status import (
 )
 from ui.components.phase_tracker import render_phase_tracker
 from ui.fragments.chat_area import render_chat_area
+
+logger = structlog.get_logger(__name__)
 
 ALLOWED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 
@@ -44,6 +47,7 @@ def _render_sidebar() -> None:
 
 def render() -> None:
     """Render the chat application page."""
+    logger.debug("chat_page_render", phase=st.session_state.get("current_phase", "intake"))
     if not _ensure_authenticated():
         return
 
