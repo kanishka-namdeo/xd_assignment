@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import structlog
+from langfuse.decorators import observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.gates.completeness import validate_completeness
@@ -37,6 +38,7 @@ class ValidationService:
         self.application_form_repo = ApplicationFormRepository(session)
         self.validation_repo = CrossDocumentValidationRepository(session)
 
+    @observe(as_type="generation", name="validate_document")
     async def validate_document(self, document_id: UUID) -> dict:
         """Validate a single document's extracted data."""
         start = datetime.now(timezone.utc)
@@ -74,6 +76,7 @@ class ValidationService:
         )
         return validation_result
 
+    @observe(as_type="generation", name="validate_cross_document")
     async def validate_cross_document(self, applicant_id: UUID, support_category: str | None = None) -> dict:
         """Run cross-document consistency validation for an applicant."""
         start = datetime.now(timezone.utc)

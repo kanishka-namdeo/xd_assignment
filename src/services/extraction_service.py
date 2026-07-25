@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import UUID
 
 import structlog
+from langfuse.decorators import observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.db.repositories.document_repo import DocumentRepository
@@ -44,6 +45,7 @@ class ExtractionService:
         session: AsyncSession,
         neo4j_driver=None,
         qdrant_client=None,
+        llm_client=None,
     ):
         self.session = session
         self.doc_repo = DocumentRepository(session)
@@ -55,6 +57,7 @@ class ExtractionService:
         self.application_form_repo = ApplicationFormRepository(session)
         self.neo4j_driver = neo4j_driver
         self.qdrant_client = qdrant_client
+        self.llm_client = llm_client
 
         # Document processors are lazily initialized to avoid import errors
         # when optional dependencies are not installed
@@ -64,6 +67,7 @@ class ExtractionService:
         self._resume_parser = None
         self._confidence_scorer = None
 
+    @observe(as_type="generation", name="extract_document")
     async def extract_document(self, document_id: UUID) -> dict:
         """Extract data from a single document and store results."""
         start = datetime.now(timezone.utc)
@@ -236,6 +240,22 @@ class ExtractionService:
                 # Unknown format or parser not available - use placeholder
                 parser_used = "placeholder"
                 parsed_data = self._generate_placeholder_data(document_type, file_path)
+                raw_text = ""
+
+            # Try LLM-based structured extraction as enrichment
+            if self.llm_client is not None and raw_text:
+                try:
+                    llm_fields = await self._parse_with_llm(document_type, raw_text)
+                    if llm_fields:
+                        # Merge LLM-extracted fields into parsed_data
+                        for key, value in llm_fields.items():
+                            if key not in ("raw_text", "parsed"):
+                                parsed_data[key] = value
+                        parser_used = f"{parser_used}+llm"
+                        logger.info("llm_extraction_enriched", document_id=str(document.id), document_type=document_type, fields_added=len(llm_fields))
+                except Exception as e:
+                    logger.warning("llm_enrichment_failed", document_id=str(document.id), error=str(e))
+                    # Continue with deterministic parsed_data
 
             logger.debug(
                 "parser_selected",
@@ -551,6 +571,59 @@ class ExtractionService:
     def _parse_generic(self, raw_text: str, raw_result) -> dict:
         """Generic fallback parser."""
         return {"raw_text": raw_text[:500] if raw_text else "", "parsed": False}
+
+    async def _parse_with_llm(self, document_type: str, raw_text: str) -> dict | None:
+        """Use LLM to extract structured fields from raw document text.
+
+        Sends the raw text with a schema-guided prompt and parses the
+        JSON response. Returns None if LLM is unavailable or parsing fails,
+        in which case the caller falls back to deterministic placeholders.
+        """
+        if self.llm_client is None:
+            return None
+
+        if not raw_text or len(raw_text.strip()) < 10:
+            return None
+
+        schema_hints = self._get_schema_hints(document_type)
+        system_prompt = (
+            "You are a document data extraction assistant for UAE Social Support applications. "
+            "Extract structured data from the provided document text. "
+            "Return ONLY valid JSON matching this schema. Do not include any explanation. "
+            f"Document type: {document_type}\n"
+            f"Fields to extract: {schema_hints}"
+        )
+        user_message = f"Extract structured data from this document:\n\n{raw_text[:8000]}"
+
+        try:
+            result = await self.llm_client.structured_completion(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                model="kat-coder-pro-v2.5",
+            )
+            import json as _json
+            content = result.get("content", "").strip()
+            parsed = _json.loads(content)
+            if isinstance(parsed, dict) and parsed:
+                return parsed
+        except Exception as e:
+            logger.warning("llm_extraction_failed", document_type=document_type, error=str(e))
+
+        return None
+
+    def _get_schema_hints(self, document_type: str) -> str:
+        """Return a brief field hint string for the given document type."""
+        hints = {
+            "emirates_id": "identity_number, full_name_en, nationality, date_of_birth, gender, issue_date, expiry_date, occupation, employer_name, marital_status",
+            "bank_statement": "bank_name, account_holder_name, account_number, iban, currency, statement_period_start, statement_period_end, opening_balance, closing_balance, total_debits, total_credits",
+            "credit_report": "cb_subject_id, identity_number, full_name, credit_score, risk_band, total_active_accounts, total_outstanding_balance, total_credit_limit, credit_utilization_ratio, late_payment_count, defaulted_accounts",
+            "resume": "full_name, email, phone, location, years_of_experience, current_employer, current_job_title, skills, highest_degree",
+            "assets_liabilities": "applicant_name, cash_and_deposits, savings_accounts, investment_accounts, retirement_accounts, real_estate_value, total_assets, mortgage_balance, personal_loans, total_liabilities, net_worth, monthly_income",
+            "application_form": "applicant_name, identity_number, date_of_birth, nationality, contact_phone, contact_email, marital_status, family_size, employment_status, employer_name, occupation, monthly_salary, support_category",
+        }
+        return hints.get(document_type, "relevant fields for this document")
 
     def _extract_field(self, text: str, pattern: str) -> str | None:
         """Extract a field from text using regex pattern."""

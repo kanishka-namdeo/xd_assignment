@@ -10,7 +10,8 @@ from src.api.middleware import RequestLoggingMiddleware
 from src.api.router import router
 from src.config import settings
 from src.infrastructure.db.session import get_engine
-from src.infrastructure.observability import configure_logging
+from src.infrastructure.observability import configure_logging, set_langfuse_client
+from src.infrastructure.observability.langfuse_client import LangfuseClient
 
 logger = structlog.get_logger(__name__)
 
@@ -18,6 +19,10 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging(log_level=settings.LOG_LEVEL, log_format=settings.LOG_FORMAT)
+
+    langfuse_client = LangfuseClient()
+    app.state.langfuse = langfuse_client
+    set_langfuse_client(langfuse_client)
 
     logger.info(
         "app_startup",
@@ -27,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log_format=settings.LOG_FORMAT,
         llm_provider=settings.LLM_PROVIDER,
         database_url=settings.DATABASE_URL,
+        langfuse_enabled=langfuse_client.enabled,
     )
 
     engine = get_engine(settings)
@@ -36,6 +42,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.run_sync(Base.metadata.create_all)
 
     yield
+
+    if hasattr(app.state, "langfuse"):
+        app.state.langfuse.shutdown()
 
     logger.info("app_shutdown", app_name=app.title, version=app.version)
 

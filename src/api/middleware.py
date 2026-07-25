@@ -10,6 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
+from src.infrastructure.observability.tracing import clear_trace_context, set_trace_context
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 logger = structlog.get_logger(__name__)
@@ -39,6 +40,12 @@ class RequestLoggingMiddleware:
             query_params=dict(request.query_params),
         )
 
+        set_trace_context(
+            trace_id=request_id,
+            session_id=request_id,
+            user_id=None,
+        )
+
         start = time.perf_counter()
         logger.debug("request_started", method=request.method, path=request.url.path)
 
@@ -65,3 +72,4 @@ class RequestLoggingMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             clear_contextvars()
+            clear_trace_context()

@@ -1,9 +1,11 @@
 """Eligibility service - compute eligibility scores using rule-based scoring."""
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
 import structlog
+from langfuse.decorators import observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.db.repositories.application_repo import ApplicationRepository
@@ -43,6 +45,7 @@ class EligibilityService:
         self.assets_liabilities_repo = AssetsLiabilitiesRepository(session)
         self.application_form_repo = ApplicationFormRepository(session)
 
+    @observe(as_type="generation", name="compute_eligibility")
     async def compute_eligibility(self, application_id: UUID) -> dict:
         """Compute eligibility score for an application using extracted data."""
         start = datetime.now(timezone.utc)

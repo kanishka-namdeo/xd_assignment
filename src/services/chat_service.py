@@ -33,6 +33,10 @@ async def handle_chat(
 
     previous_phase = application.current_phase
 
+    langfuse_client = None
+    if hasattr(db_session, "_langfuse_client"):
+        langfuse_client = db_session._langfuse_client
+
     try:
         result = await run_orchestrator(
             {
@@ -41,7 +45,8 @@ async def handle_chat(
                 "applicant_id": str(application.applicant_id),
                 "application_id": str(application.id),
                 "uploaded_files": file_paths,
-            }
+            },
+            langfuse_client=langfuse_client,
         )
     except Exception as e:
         logger.exception("orchestrator_invocation_failed", application_id=application_id, error=str(e))

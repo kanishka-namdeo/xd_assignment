@@ -11,6 +11,7 @@ from langchain_core.messages import BaseMessage
 from src.agents.state import ApplicantState
 
 if TYPE_CHECKING:
+    from src.infrastructure.llm.client import LLMClient
     from src.services.decision_service import DecisionService
     from src.services.eligibility_service import EligibilityService
     from src.services.extraction_service import ExtractionService
@@ -20,6 +21,7 @@ logger = structlog.get_logger(__name__)
 
 # Global service instances (injected at graph compilation time)
 _services: dict[str, Any] = {}
+_llm_client: "LLMClient | None" = None
 
 
 def inject_services(
@@ -44,9 +46,50 @@ def inject_services(
     logger.info("services_injected", event="services_injected", services=[k for k, v in _services.items() if v is not None])
 
 
+def inject_llm_client(llm: "LLMClient | None") -> None:
+    """Inject an LLMClient instance for conversational node responses."""
+    global _llm_client
+    _llm_client = llm
+    logger.info("llm_client_injected", event="llm_client_injected", provider=llm.provider if llm else None)
+
+
 def get_services() -> dict[str, Any]:
     """Get injected service instances."""
     return _services
+
+
+def _get_llm_client() -> "LLMClient | None":
+    """Get the injected LLM client instance."""
+    return _llm_client
+
+
+async def _generate_llm_response(
+    system_prompt: str,
+    user_context: str,
+    fallback_response: str,
+) -> str:
+    """Generate an LLM response with graceful fallback.
+
+    Calls the injected LLMClient if available; otherwise returns the fallback.
+    On any LLM error, also falls back to the deterministic response.
+    """
+    llm = _get_llm_client()
+    if llm is None:
+        return fallback_response
+
+    try:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_context},
+        ]
+        result = await llm.chat_completion(messages, model="kat-coder-pro-v2.5")
+        content = result.get("content", "").strip()
+        if content:
+            return content
+    except Exception as e:
+        logger.warning("llm_node_fallback", node="unknown", error=str(e))
+
+    return fallback_response
 
 
 def _get_last_message_content(state: ApplicantState) -> str:
@@ -136,11 +179,31 @@ def intake_node(state: ApplicantState) -> ApplicantState:
             )
         next_phase = "intake"
 
+    # Try LLM-generated response with graceful fallback
+    import asyncio as _asyncio
+    system_prompt = (
+        "You are a helpful and professional intake assistant for the UAE Social Support Application system. "
+        "Your role is to collect basic information from applicants in a warm, clear manner. "
+        "Keep responses concise and guide the applicant to the next step."
+    )
+    user_context = (
+        f"Applicant message: {user_text or '(no message)'}\n"
+        f"Current info: {applicant_info}\n"
+        f"Support category detected: {support_category or 'none yet'}"
+    )
+    try:
+        loop = _asyncio.get_event_loop()
+        llm_response = loop.run_until_complete(
+            _generate_llm_response(system_prompt, user_context, response)
+        )
+    except Exception:
+        llm_response = response
+
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="intake", duration_ms=round(duration_ms, 2), next_phase=next_phase, support_category=support_category)
 
     return {
-        "messages": [_make_assistant_message(response)],
+        "messages": [_make_assistant_message(llm_response)],
         "current_phase": next_phase,
         "applicant_info": applicant_info,
     }
@@ -197,11 +260,33 @@ def document_collection_node(state: ApplicantState) -> ApplicantState:
         )
         next_phase = "document_collection"
 
+    # Try LLM-generated response with graceful fallback
+    system_prompt = (
+        "You are a helpful document collection assistant for the UAE Social Support Application system. "
+        "Your role is to request and track required supporting documents from applicants. "
+        "Be clear about which documents are needed and reassure applicants about the process. "
+        "Keep responses concise."
+    )
+    user_context = (
+        f"Support category: {support_category}\n"
+        f"Required documents: {', '.join(required)}\n"
+        f"Already uploaded: {len(uploaded_files) + len(uploaded_docs)} document(s)\n"
+        f"User message: {last_message or '(no message)'}"
+    )
+    import asyncio as _asyncio2
+    try:
+        loop2 = _asyncio2.get_event_loop()
+        llm_response = loop2.run_until_complete(
+            _generate_llm_response(system_prompt, user_context, response)
+        )
+    except Exception:
+        llm_response = response
+
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="document_collection", duration_ms=round(duration_ms, 2), next_phase=next_phase, uploaded_count=len(uploaded_files) + len(uploaded_docs), required_count=len(required))
 
     return {
-        "messages": [_make_assistant_message(response)],
+        "messages": [_make_assistant_message(llm_response)],
         "current_phase": next_phase,
     }
 
@@ -214,10 +299,24 @@ def processing_node(state: ApplicantState) -> ApplicantState:
     Generates processing status message.
     Transitions to review.
     """
+    from src.infrastructure.observability import get_langfuse_client
+
     start_ms = time.perf_counter()
     application_id = state.get("application_id")
     applicant_id = state.get("applicant_id")
     logger.info("node_enter", event="node_enter", node="processing", application_id=application_id, applicant_id=applicant_id)
+
+    # Create Langfuse trace for processing phase
+    langfuse_client = get_langfuse_client()
+    trace = None
+    if langfuse_client:
+        trace = langfuse_client.trace(
+            name="processing_phase",
+            session_id=application_id,
+            user_id=applicant_id,
+            tags=["processing", "document_extraction", "validation"],
+            input={"application_id": application_id, "applicant_id": applicant_id},
+        )
 
     applicant_info = state.get("applicant_info", {})
     support_category = applicant_info.get("support_category", "")
@@ -239,9 +338,22 @@ def processing_node(state: ApplicantState) -> ApplicantState:
                 extraction_service.extract_all_documents(applicant_id)
             )
             logger.info("extraction_complete", event="extraction_complete", document_count=len(extraction_results))
+            if trace:
+                trace.span(
+                    name="document_extraction",
+                    input={"applicant_id": applicant_id},
+                    output={"documents_extracted": len(extraction_results)},
+                )
         except Exception as e:
             extraction_results = [{"status": "failed", "error": str(e)}]
             logger.exception("extraction_failed", event="extraction_failed", error=str(e))
+            if trace:
+                trace.span(
+                    name="document_extraction",
+                    input={"applicant_id": applicant_id},
+                    output={"error": str(e)},
+                    level="ERROR",
+                )
 
     if validation_service and applicant_id:
         try:
@@ -252,9 +364,22 @@ def processing_node(state: ApplicantState) -> ApplicantState:
             )
             discrepancies = validation_results.get("discrepancies", [])
             logger.info("validation_complete", event="validation_complete", discrepancy_count=len(discrepancies))
+            if trace:
+                trace.span(
+                    name="cross_document_validation",
+                    input={"applicant_id": applicant_id, "support_category": support_category},
+                    output={"discrepancies_found": len(discrepancies)},
+                )
         except Exception as e:
             validation_results = {"status": "failed", "error": str(e)}
             logger.exception("validation_failed", event="validation_failed", error=str(e))
+            if trace:
+                trace.span(
+                    name="cross_document_validation",
+                    input={"applicant_id": applicant_id, "support_category": support_category},
+                    output={"error": str(e)},
+                    level="ERROR",
+                )
 
     # Store results in state for downstream nodes
     state_update: dict[str, Any] = {
@@ -282,6 +407,15 @@ def processing_node(state: ApplicantState) -> ApplicantState:
 
     state_update["messages"] = [_make_assistant_message(response)]
     state_update["current_phase"] = "review"
+
+    if trace:
+        trace.update(
+            output={
+                "documents_extracted": len(extraction_results),
+                "discrepancies_found": len(discrepancies),
+                "phase_transition": "review",
+            }
+        )
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="processing", duration_ms=round(duration_ms, 2), extraction_count=len(extraction_results), discrepancy_count=len(discrepancies))
@@ -318,11 +452,33 @@ def review_node(state: ApplicantState) -> ApplicantState:
             "Proceeding to the decision phase."
         )
 
+    # Try LLM-generated response with graceful fallback
+    system_prompt = (
+        "You are a professional review officer for the UAE Social Support Application system. "
+        "Your role is to communicate cross-document validation results to applicants clearly and empathetically. "
+        "If discrepancies exist, explain them plainly. If everything is consistent, reassure the applicant. "
+        "Keep responses concise and professional."
+    )
+    discrepancy_count = len(discrepancies)
+    user_context = (
+        f"Validation result: {'discrepancies found' if discrepancies else 'all consistent'}\n"
+        f"Number of discrepancies: {discrepancy_count}\n"
+        f"Discrepancy details: {discrepancies[:2] if discrepancies else 'none'}"
+    )
+    import asyncio as _asyncio3
+    try:
+        loop3 = _asyncio3.get_event_loop()
+        llm_response = loop3.run_until_complete(
+            _generate_llm_response(system_prompt, user_context, response)
+        )
+    except Exception:
+        llm_response = response
+
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="review", duration_ms=round(duration_ms, 2), discrepancy_count=len(discrepancies))
 
     return {
-        "messages": [_make_assistant_message(response)],
+        "messages": [_make_assistant_message(llm_response)],
         "current_phase": "decision",
     }
 
@@ -472,11 +628,33 @@ def enablement_node(state: ApplicantState) -> ApplicantState:
         f"Next steps: {recommendation_text}"
     )
 
+    # Try LLM-generated response with graceful fallback
+    system_prompt = (
+        "You are a compassionate case worker delivering the final decision and next steps "
+        "for the UAE Social Support Application system. "
+        "Communicate the decision clearly and outline concrete next steps. "
+        "Be empathetic whether the outcome is approval, manual review, or decline. "
+        "Keep responses concise and actionable."
+    )
+    user_context = (
+        f"Decision: {decision}\n"
+        f"Support category: {support_category}\n"
+        f"Recommendations: {recommendation_text[:200]}"
+    )
+    import asyncio as _asyncio4
+    try:
+        loop4 = _asyncio4.get_event_loop()
+        llm_response = loop4.run_until_complete(
+            _generate_llm_response(system_prompt, user_context, response)
+        )
+    except Exception:
+        llm_response = response
+
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="enablement", duration_ms=round(duration_ms, 2), recommendation_count=len(recommendations), decision=decision)
 
     return {
-        "messages": [_make_assistant_message(response)],
+        "messages": [_make_assistant_message(llm_response)],
         "current_phase": "enablement",
         "enablement_recommendations": recommendations,
     }
