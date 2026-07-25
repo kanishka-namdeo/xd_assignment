@@ -87,6 +87,32 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child [AGENTS.md](http://AGENTS.md)
 
+### Pre-Planning Requirements
+
+Before writing any implementation plan, agents MUST complete two steps:
+
+1. **Codebase scan**: Launch parallel `generalPurpose` subagents, each covering a distinct area relevant to the task (e.g., architecture, data models, API layer, UI, tests). Each subagent returns a summary of relevant files, patterns, contracts, and dependencies. Do not skip this step or do it sequentially — parallelism is required for speed.
+2. **Web search**: Run web searches for current best practices, latest library versions, API changes, and relevant patterns before planning. This is mandatory regardless of topic — do not skip based on staleness heuristics. Plans must be informed by current external knowledge, not just training data.
+
+### Superpowers Workflow Behavior
+
+When using superpowers workflows, agents MUST follow these web search rules:
+
+**Mandatory web search (before each workflow's core output):**
+- **brainstorming**: Search for current library capabilities, architectural patterns, and best practices before proposing 2-3 approaches. Knowledge of what's currently available is required to make informed design recommendations.
+- **writing-plans**: Search for current APIs, library versions, testing patterns, and implementation best practices. Already covered by Pre-Planning Requirements above.
+- **test-driven-development**: Search for current testing patterns and library APIs before writing tests. Pytest fixtures, async testing strategies, mocking patterns, and assertion libraries evolve — use current best practices.
+
+**Reactive web search (when relevant to the task):**
+- **systematic-debugging**: Search when encountering unfamiliar errors, library-specific behaviors, or version-specific issues. Not required for every debug session — use when stuck or when the error domain is unfamiliar.
+- **receiving-code-review**: Search when evaluating code against current best practices or library recommendations. Use to validate whether review feedback aligns with current standards.
+
+**No web search needed:**
+- **executing-plans**, **subagent-driven-development**: Execution workflows — follow the existing plan.
+- **Git workflows** (using-git-worktrees, finishing-a-development-branch, verification-before-completion): Stable patterns with no external dependency.
+- **dispatching-parallel-agents**: Orchestration pattern, not domain-specific.
+- **requesting-code-review**: Review request is process, not content.
+
 ### Project Rules (`.cursor/rules/*.mdc`)
 
 All rules use `alwaysApply: true` and apply to every Agent session:

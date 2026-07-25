@@ -77,6 +77,27 @@ ENV/
 CACHEDIR.TAG
 
 # ====================
+# Local databases / Vector store
+# ====================
+*.db
+*.sqlite3
+.qdrant/
+.neo4j/
+
+# ====================
+# Langfuse / LangSmith
+# ====================
+.langfuse/
+langfuse.db
+.langsmith/
+
+# ====================
+# Jupyter notebooks
+# ====================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ====================
 # ML / Data artifacts
 # ====================
 *.joblib
@@ -91,6 +112,23 @@ CACHEDIR.TAG
 # Runtime / Uploads
 # ====================
 uploads/
+
+# ====================
+# Generated output
+# ====================
+generated_data/
+output/
+
+# ====================
+# Testing artifacts
+# ====================
+htmlcov/
+.pytest_results/
+test-results/
+playwright-report/
+.playwright/
+allure-results/
+allure-report/
 
 # ====================
 # DOX framework internals
