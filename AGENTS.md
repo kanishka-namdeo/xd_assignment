@@ -191,7 +191,7 @@ Chat-based user interface for applicant interaction. Uses `st.navigation` with `
 
 ### `tests/` - Test Suite
 
-Unit, integration, and end-to-end tests mirroring the `src/` structure. ~241+ unit tests covering agents (174), gates (58), and domain (9). Integration tests: 4 populated, 3 stubs. E2E and system tests for full application flow validation. Root-level ad-hoc test scripts also present.
+Unit, integration, and end-to-end tests mirroring the `src/` structure. ~241+ unit tests covering agents (174), gates (58), and domain (9). Integration tests: 4 populated, 3 stubs. E2E and system tests for full application flow validation. Root-level ad-hoc test scripts also present (e.g., `test_comprehensive_e2e.py`, `test_e2e_phases.py`, `test_fresh_e2e.py`, `test_session_recovery.py`, `test_upload.py`).
 
 ### `evals/` - Agent Evaluation
 
@@ -211,7 +211,7 @@ Development and operational scripts for data generation and maintenance tasks. C
 
 ### `docs/` - Documentation
 
-Design specifications, architecture decisions, and durable project documentation. Contains 6 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns), Langfuse v4 setup guide, and `solution-summary.md` — a living 10-page solution summary maintained by agents throughout the project.
+Design specifications, architecture decisions, and durable project documentation. Contains 6 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns), Langfuse v4 setup guide, and `solution-summary.md` — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers (`live-testing-tracker.md`, `e2e-testing-tracker.md`) documenting comprehensive test results with 9/9 tests passing and 6 bugs fixed.
 
 ### `reference_docs/` - Reference Documentation
 

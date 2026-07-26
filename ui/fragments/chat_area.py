@@ -10,6 +10,8 @@ import structlog
 
 from ui.components.chat_input import ChatInputResult, render_chat_input
 from ui.components.decision_card import render_decision_card
+from ui.components.discrepancy_card import render_discrepancy_cards
+from ui.components.enablement_section import render_enablement_section
 
 logger = structlog.get_logger(__name__)
 
@@ -52,13 +54,29 @@ def _call_chat_api(
     return resp.json()
 
 
+def _get_spinner_message(phase: str) -> str:
+    """Return a phase-specific spinner message."""
+    messages = {
+        "processing": "Extracting data from your documents and validating consistency...",
+        "decision": "Computing eligibility score and finalizing decision...",
+    }
+    return messages.get(phase, "Processing your request...")
+
+
 def _append_user_message(text: str, files: list[dict[str, Any]] | None) -> None:
     """Append a user message to session history."""
     entry: dict[str, Any] = {"role": "user", "content": text}
     if files:
-        entry["files"] = [
-            {"name": f["name"], "size": f["size"]} for f in files
-        ]
+        entry["files"] = []
+        for f in files:
+            file_entry: dict[str, Any] = {"name": f["name"], "size": f["size"]}
+            # Store raw bytes for image thumbnail rendering
+            data = f["data"]
+            if hasattr(data, "getvalue"):
+                file_entry["data"] = data.getvalue()
+            elif isinstance(data, bytes):
+                file_entry["data"] = data
+            entry["files"].append(file_entry)
     st.session_state.messages.append(entry)
 
 
@@ -72,6 +90,10 @@ def _append_assistant_message(response: dict[str, Any]) -> None:
         entry["decision_card"] = response["decision_card"]
     elif response.get("decision"):
         entry["decision"] = response["decision"]
+    if response.get("enablement_recommendations"):
+        entry["enablement_recommendations"] = response["enablement_recommendations"]
+    if response.get("discrepancies"):
+        entry["discrepancies"] = response["discrepancies"]
     st.session_state.messages.append(entry)
 
 
@@ -100,8 +122,11 @@ def _handle_submission(result: ChatInputResult) -> None:
             st.rerun()
             return
 
+    previous_phase = st.session_state.get("current_phase", "intake")
+
     try:
-        response = _call_chat_api(application_id, result.text, file_paths)
+        with st.spinner(_get_spinner_message(previous_phase)):
+            response = _call_chat_api(application_id, result.text, file_paths)
     except requests.ConnectionError:
         st.session_state.messages.append({
             "role": "assistant",
@@ -138,9 +163,23 @@ def _handle_submission(result: ChatInputResult) -> None:
     if response.get("phase"):
         st.session_state.current_phase = response["phase"]
 
-    # Update uploaded documents list if returned
+    # Notify if phase changed
+    new_phase = response.get("phase", previous_phase)
+    if new_phase != previous_phase:
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": f"Phase updated to {new_phase}",
+        })
+
+    # Show document classification confirmations
     if response.get("uploaded_documents"):
         st.session_state.uploaded_documents = response["uploaded_documents"]
+        for doc in response["uploaded_documents"]:
+            doc_type = doc.get("document_type", "Document")
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"✓ {doc_type} uploaded and classified.",
+            })
 
     logger.info(
         "agent_response_received",
@@ -149,6 +188,33 @@ def _handle_submission(result: ChatInputResult) -> None:
     )
 
     st.rerun()
+
+
+FILE_ICONS: dict[str, str] = {
+    "pdf": "📄",
+    "xlsx": "📊",
+    "xls": "📊",
+    "docx": "📝",
+    "doc": "📝",
+}
+
+
+def _render_file_attachments(files: list[dict[str, Any]]) -> None:
+    """Render uploaded file attachments with thumbnails and icons."""
+    st.caption("Attachments:")
+    for f in files:
+        ext = Path(f["name"]).suffix.lstrip(".").lower()
+        size_kb = round(f.get("size", 0) / 1024, 1)
+
+        if ext in ("png", "jpg", "jpeg"):
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.image(f["data"], width=100)
+            with col2:
+                st.caption(f"{f['name']} ({size_kb} KB)")
+        else:
+            icon = FILE_ICONS.get(ext, "📎")
+            st.caption(f"{icon} {f['name']} ({size_kb} KB)")
 
 
 @st.fragment
@@ -166,18 +232,27 @@ def render_chat_area() -> None:
         with st.chat_message(msg["role"]):
             if msg["role"] == "assistant" and msg.get("decision_card"):
                 render_decision_card(msg["decision_card"])
+                if msg.get("enablement_recommendations"):
+                    render_enablement_section(msg["enablement_recommendations"])
+                if msg.get("discrepancies"):
+                    render_discrepancy_cards(msg["discrepancies"])
                 if msg.get("content"):
                     st.markdown(msg["content"])
             elif msg["role"] == "assistant" and msg.get("decision"):
                 render_decision_card({"decision_type": msg["decision"]})
+                if msg.get("enablement_recommendations"):
+                    render_enablement_section(msg["enablement_recommendations"])
+                if msg.get("discrepancies"):
+                    render_discrepancy_cards(msg["discrepancies"])
                 if msg.get("content"):
                     st.markdown(msg["content"])
+            elif msg["role"] == "user" and msg.get("files"):
+                st.markdown(msg["content"] if msg.get("content") else "Attachments:")
+                _render_file_attachments(msg["files"])
             else:
                 st.markdown(msg["content"])
                 if msg.get("files"):
-                    for f in msg["files"]:
-                        size_kb = round(f.get("size", 0) / 1024, 1)
-                        st.caption(f"📎 {f['name']} ({size_kb} KB)")
+                    _render_file_attachments(msg["files"])
 
     result = render_chat_input()
     if result:

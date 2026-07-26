@@ -15,6 +15,12 @@ from ui.app_pages import chat, landing
 
 logger = structlog.get_logger(__name__)
 
+# Inject global custom CSS
+_css_path = Path(__file__).resolve().parent / "styles" / "global.css"
+if _css_path.exists():
+    _css_content = _css_path.read_text(encoding="utf-8")
+    st.markdown(f"<style>{_css_content}</style>", unsafe_allow_html=True)
+
 st.set_page_config(
     page_title="Social Support Application",
     page_icon="🇦🇪",

@@ -11,6 +11,7 @@ Development and operational scripts for data generation, maintenance, and automa
 
 ### Script Categories
 - **Data Generation** (`generate_test_data.py`): Generates synthetic test applicant profiles with cross-document consistency
+- **Fresh Account Generation** (`generate_fresh_account.py`): Generates a single fresh applicant account with full document set, supports custom seeds and output directories
 
 ### Execution Requirements
 - All scripts must use the project venv: `.\.venv\Scripts\python.exe`

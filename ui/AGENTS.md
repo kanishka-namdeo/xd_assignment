@@ -15,8 +15,9 @@ Use `st.navigation` with `st.Page` API (2025-2026 standard). Do NOT use `pages/`
 ### File Organization
 - `streamlit_app.py`: Entrypoint with `st.navigation` setup
 - `app_pages/`: Page definitions (landing.py, chat.py)
-- `components/`: Reusable UI elements (decision cards, document status, phase tracker)
+- `components/`: Reusable UI elements (decision cards, discrepancy cards, document status, phase tracker, chat input)
 - `fragments/`: `@st.fragment` wrapped sections for partial reruns
+- `styles/`: Global CSS stylesheets
 
 ### Performance Rules
 - Use `@st.fragment` for chat area to prevent full-page reruns

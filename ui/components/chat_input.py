@@ -11,6 +11,22 @@ logger = structlog.get_logger(__name__)
 
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 
+PHASE_PLACEHOLDERS: dict[str, str] = {
+    "authentication": "Enter your Emirates ID number...",
+    "intake": "Type your answer...",
+    "document_collection": "Attach your documents here (PDF, images, DOCX, XLSX)...",
+    "processing": "Please wait while we process your documents...",
+    "review": "Type your clarification or attach corrected documents...",
+    "decision": "Please wait while we finalize your decision...",
+    "enablement": "Ask a follow-up question...",
+}
+
+PHASE_HINTS: dict[str, str] = {
+    "document_collection": "Accepted formats: PDF, PNG, JPG, DOCX, XLSX. You can upload multiple files at once.",
+    "review": "You can attach corrected documents or type your clarification.",
+    "enablement": "Have questions about your decision or next steps?",
+}
+
 
 @dataclass
 class ChatInputResult:
@@ -20,17 +36,29 @@ class ChatInputResult:
     files: list[dict[str, Any]] | None = None
 
 
+def _get_current_phase() -> str:
+    """Return the current application phase from session state."""
+    return st.session_state.get("current_phase", "intake")
+
+
 def render_chat_input() -> ChatInputResult | None:
     """Render the chat input widget and return submitted data, or None.
 
     Returns a ChatInputResult when the user submits a message, otherwise None.
     """
+    phase = _get_current_phase()
+    placeholder = PHASE_PLACEHOLDERS.get(phase, "Type your message or attach documents...")
+
     prompt = st.chat_input(
-        placeholder="Type your message or attach documents...",
+        placeholder=placeholder,
         accept_file="multiple",
         file_type=SUPPORTED_FILE_TYPES,
         submit_mode="disable",
     )
+
+    hint_text = PHASE_HINTS.get(phase)
+    if hint_text:
+        st.caption(hint_text)
 
     if not prompt:
         return None

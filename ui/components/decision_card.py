@@ -1,5 +1,6 @@
 """Styled decision cards for Phase 5-6 applicant outcomes."""
 
+from datetime import datetime
 from typing import Any
 
 import streamlit as st
@@ -18,6 +19,101 @@ def _render_next_steps(steps: list[str]) -> str:
     """Render next steps as a numbered list."""
     items = "".join(f"<li>{i + 1}. {step}</li>" for i, step in enumerate(steps))
     return f"<ol style='padding-left:20px;margin:8px 0;'>{items}</ol>"
+
+
+def _generate_decision_summary(card: dict[str, Any]) -> str:
+    """Generate a plain-text decision summary for download."""
+    decision_type = card.get("decision", card.get("decision_type", card.get("type", "unknown")))
+    score = card.get("eligibility_score", "N/A")
+    date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    lines = [
+        "=" * 50,
+        "SOCIAL SUPPORT APPLICATION - DECISION SUMMARY",
+        "=" * 50,
+        "",
+        f"Decision: {decision_type.replace('_', ' ').title()}",
+        f"Eligibility Score: {score}/100" if isinstance(score, (int, float)) else f"Eligibility Score: {score}",
+        f"Date: {date_str}",
+        "",
+    ]
+
+    # Key factors / reasons
+    factors = card.get("key_factors") or card.get("reasons") or []
+    if factors:
+        lines.append("Key Factors:")
+        for factor in factors:
+            lines.append(f"  - {factor}")
+        lines.append("")
+
+    additional_info = card.get("additional_info_needed", [])
+    if additional_info:
+        lines.append("Additional Information Needed:")
+        for info in additional_info:
+            lines.append(f"  - {info}")
+        lines.append("")
+
+    discrepancies = card.get("unresolved_discrepancies", [])
+    if discrepancies:
+        lines.append("Unresolved Discrepancies:")
+        for disc in discrepancies:
+            lines.append(f"  - {disc}")
+        lines.append("")
+
+    improvements = card.get("improvement_suggestions", [])
+    if improvements:
+        lines.append("Improvement Suggestions:")
+        for imp in improvements:
+            lines.append(f"  - {imp}")
+        lines.append("")
+
+    # Explanation
+    explanation = card.get("explanation", "")
+    if explanation:
+        lines.append("Explanation:")
+        lines.append(f"  {explanation}")
+        lines.append("")
+
+    # Next steps
+    next_steps = card.get("next_steps", [])
+    if next_steps:
+        lines.append("Next Steps:")
+        for i, step in enumerate(next_steps, 1):
+            lines.append(f"  {i}. {step}")
+        lines.append("")
+
+    # Support details for approved
+    support_amount = card.get("support_amount")
+    support_duration = card.get("support_duration")
+    if support_amount:
+        lines.append(f"Support Amount: AED {support_amount}")
+    if support_duration:
+        lines.append(f"Support Duration: {support_duration}")
+
+    # Enablement section
+    enablement = card.get("enablement_section")
+    if enablement and enablement.get("items"):
+        lines.append("")
+        lines.append(f"Recommended Support Programs: {enablement.get('title', '')}")
+        for item in enablement["items"]:
+            lines.append(f"  - {item.get('title', '')}: {item.get('description', '')}")
+
+    lines.append("")
+    lines.append("=" * 50)
+
+    return "\n".join(lines)
+
+
+def _render_download_button(card: dict[str, Any]) -> None:
+    """Render a download button for the decision summary."""
+    summary = _generate_decision_summary(card)
+    st.download_button(
+        label="Download Decision Summary",
+        data=summary,
+        file_name="decision_summary.txt",
+        mime="text/plain",
+        use_container_width=True,
+    )
 
 
 def render_decision_card(card: dict[str, Any]) -> None:
@@ -50,6 +146,8 @@ def render_decision_card(card: dict[str, Any]) -> None:
         _render_soft_decline_card(card)
     else:
         st.warning(f"Unknown decision type: {decision_type}")
+
+    _render_download_button(card)
 
 
 def _is_formatted_card(card: dict[str, Any]) -> bool:
@@ -94,7 +192,7 @@ def _render_formatted_card(card: dict[str, Any]) -> None:
 
     card_html = f"""
     <div style='
-        background: linear-gradient(135deg, {c["bg"]} 0%, {c["bg"]} 100%);
+        background: linear-gradient(135deg, {c["bg"]} 0%, {c["bg"]} 100%;
         border-left: 6px solid {c["border"]};
         border-radius: 12px;
         padding: 24px 28px;
