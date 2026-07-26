@@ -62,7 +62,7 @@ def _load_ml_model():
 
 def _rule_based_predict(features: dict) -> dict:
     """Fallback rule-based scoring aligned with EligibilityService._compute_score."""
-    score = 0.4
+    score = 0.45
     factor_contributions: dict[str, float] = {}
 
     # Credit score
@@ -91,20 +91,25 @@ def _rule_based_predict(features: dict) -> dict:
         score += 0.05
         factor_contributions["moderate_debt_ratio"] = 0.05
     elif dti < 0.8:
-        score -= 0.05
-        factor_contributions["high_debt_ratio"] = -0.05
+        # Common range for UAE residents with auto/housing loans; neutral
+        factor_contributions["high_debt_ratio"] = 0.0
     else:
         score -= 0.15
         factor_contributions["excessive_debt_ratio"] = -0.15
 
     # Employment stability
     employment_months = features.get("employment_stability_months", 0)
+    employment_status = features.get("employment_status", "")
     if employment_months >= 36:
         score += 0.10
         factor_contributions["stable_employment"] = 0.10
     elif employment_months >= 12:
         score += 0.05
         factor_contributions["adequate_employment"] = 0.05
+    elif employment_status == "employed" and employment_months == 0:
+        # Resume may not have been extracted; don't penalize employed applicants
+        score += 0.03
+        factor_contributions["employed_no_resume"] = 0.03
     else:
         score -= 0.05
         factor_contributions["short_employment_history"] = -0.05

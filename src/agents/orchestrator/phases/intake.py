@@ -72,15 +72,67 @@ async def intake_node(state: ApplicantState) -> dict:
         llm_json_str = await _generate_llm_response(extraction_prompt, user_text, "{}")
 
         try:
-            json_match = re.search(r"\{[^}]*\}", llm_json_str, re.DOTALL)
-            if json_match:
-                extracted = json.loads(json_match.group(0))
-                for field in INTAKE_FIELDS:
-                    if field in extracted and extracted[field]:
-                        applicant_info[field] = str(extracted[field]).strip()
-                logger.debug("intake_llm_extraction", extracted_fields=[k for k in extracted if k in INTAKE_FIELDS])
-        except (json.JSONDecodeError, AttributeError) as e:
-            logger.warning("intake_llm_parse_failed", error=str(e))
+            # Try parsing the entire string as JSON first
+            extracted = json.loads(llm_json_str.strip())
+            for field in INTAKE_FIELDS:
+                if field in extracted and extracted[field]:
+                    applicant_info[field] = str(extracted[field]).strip()
+            logger.debug("intake_llm_extraction", extracted_fields=[k for k in extracted if k in INTAKE_FIELDS])
+        except json.JSONDecodeError:
+            # Fallback: extract JSON object with balanced braces
+            try:
+                brace_count = 0
+                start_idx = None
+                for i, ch in enumerate(llm_json_str):
+                    if ch == '{':
+                        if brace_count == 0:
+                            start_idx = i
+                        brace_count += 1
+                    elif ch == '}':
+                        brace_count -= 1
+                        if brace_count == 0 and start_idx is not None:
+                            json_str = llm_json_str[start_idx:i+1]
+                            extracted = json.loads(json_str)
+                            for field in INTAKE_FIELDS:
+                                if field in extracted and extracted[field]:
+                                    applicant_info[field] = str(extracted[field]).strip()
+                            logger.debug("intake_llm_extraction", extracted_fields=[k for k in extracted if k in INTAKE_FIELDS])
+                            break
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning("intake_llm_parse_failed", error=str(e))
+        
+        # Regex-based fallback for any fields not extracted by LLM
+        missing_after_llm = [f for f in INTAKE_FIELDS if not applicant_info.get(f)]
+        if missing_after_llm:
+            logger.info("intake_regex_fallback", missing_fields=missing_after_llm, user_text=user_text[:200])
+            # Map field names to regex patterns
+            field_patterns = {
+                "full_name": r"(?:my\s+)?(?:name|full name)\s*(?:is|:)\s*([A-Za-z\s]+?)(?:\.|,|\n|$)",
+                "date_of_birth": r"(?:date of birth|dob|birth date)\s*(?:is|:)\s*(\d{4}-\d{2}-\d{2})",
+                "nationality": r"nationality\s*(?:is|:)\s*([A-Za-z]+?)(?:\.|,|\n|$)",
+                "contact_phone": r"(?:phone|tel|telephone)\s*(?:is|:)\s*([+\d\s\-()]+?)(?:\.|,|\n|$)",
+                "contact_email": r"email\s*(?:is|:)\s*([\w\.-]+@[\w\.-]+?\.\w+)",
+                "address": r"address\s*(?:is|:)\s*([^\n\.]+?)(?:\.|\n|$)",
+                "marital_status": r"marital status\s*(?:is|:)\s*(single|married|divorced|widowed|separated)",
+                "family_size": r"family size\s*(?:is|:)\s*(\d+)",
+                "employment_status": r"employment status\s*(?:is|:)\s*(employed|self-employed|unemployed|retired|student)",
+                "employer_name": r"employer\s*(?:name)?\s*(?:is|:)\s*([A-Za-z\s]+?)(?:\.|,|\n|$)",
+                "occupation": r"occupation\s*(?:is|:)\s*([A-Za-z\s]+?)(?:\.|,|\n|$)",
+                "housing_status": r"housing status\s*(?:is|:)\s*(rented|owned|family|mortgage)",
+                "support_category": r"support category\s*(?:is|:)\s*(divorced|abandoned|unknown_parentage|health_disability)",
+            }
+            
+            for field in missing_after_llm:
+                if field in field_patterns:
+                    pattern = field_patterns[field]
+                    match = re.search(pattern, user_text, re.IGNORECASE)
+                    if match:
+                        value = match.group(1).strip()
+                        if value:
+                            applicant_info[field] = value
+                            logger.info("intake_regex_extracted", field=field, value=value)
+                    else:
+                        logger.debug("intake_regex_no_match", field=field, pattern=pattern)
 
     missing_fields = [f for f in INTAKE_FIELDS if not applicant_info.get(f)]
     support_category = applicant_info.get("support_category")

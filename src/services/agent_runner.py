@@ -71,8 +71,21 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
             resume_payload = input_data.get("resume")
             if resume_payload is not None:
                 # Resume from checkpoint with the user's response
+                # Include state updates (e.g., uploaded_files) alongside the resume value
+                state_update = {
+                    "uploaded_files": input_data.get("uploaded_files", []),
+                    "messages": input_data.get("messages", []),
+                }
+                logger.info(
+                    "resuming_graph_with_command",
+                    thread_id=thread_id,
+                    resume_payload_type=type(resume_payload).__name__,
+                    state_update_keys=list(state_update.keys()),
+                    uploaded_files_count=len(state_update["uploaded_files"]),
+                    uploaded_files=state_update["uploaded_files"],
+                )
                 result = await graph.ainvoke(
-                    Command(resume=resume_payload),
+                    Command(resume=resume_payload, update=state_update),
                     config=config,
                 )
             else:

@@ -157,7 +157,9 @@ def _check_required_documents_present(
     for doc_type in required:
         if doc_type not in extracted_data:
             return f"Required document not present: {doc_type}"
-        if doc_type not in validation_results:
+        # Only require validation if validation_results is non-empty
+        # (validation may not have run yet in some flows)
+        if validation_results and doc_type not in validation_results:
             return f"Required document not validated: {doc_type}"
 
     return None

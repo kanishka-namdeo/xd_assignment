@@ -50,8 +50,8 @@ class ApplicationRepository:
 
     async def update(self, application: Application) -> Application:
         start = time.perf_counter()
-        await self.session.merge(application)
-        await self.session.flush()
+        # Object is already attached to session, just commit the changes
+        await self.session.commit()
         await self.session.refresh(application)
         logger.debug(
             "application_updated",
@@ -123,7 +123,7 @@ class ApplicationRepository:
             .where(Application.id == application_id)
             .values(state_snapshot=state_serializable)
         )
-        await self.session.flush()
+        await self.session.commit()
         logger.debug(
             "application_save_state",
             application_id=str(application_id),

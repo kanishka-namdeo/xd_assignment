@@ -46,7 +46,7 @@ class ApplicantRepository:
     async def update(self, applicant: Applicant) -> Applicant:
         start = time.perf_counter()
         await self.session.merge(applicant)
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(applicant)
         logger.debug(
             "applicant_updated",

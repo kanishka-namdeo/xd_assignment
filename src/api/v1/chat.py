@@ -119,6 +119,12 @@ async def chat(
         graph_input["resume"] = text
         # Don't add a new user message - the interrupt resume handles it
         graph_input["messages"] = previous_state.get("messages", [])
+        logger.info(
+            "resuming_from_interrupt",
+            application_id=application_id,
+            file_count=len(file_paths),
+            file_paths=file_paths,
+        )
     else:
         # Fresh invocation with new user message
         graph_input["messages"] = [{"role": "user", "content": text}]
@@ -127,6 +133,14 @@ async def chat(
     graph_input["applicant_id"] = str(application.applicant_id)
     graph_input["application_id"] = str(application.id)
     graph_input["uploaded_files"] = file_paths
+    
+    logger.info(
+        "graph_input_prepared",
+        application_id=application_id,
+        uploaded_files_count=len(file_paths),
+        uploaded_files=file_paths,
+        has_resume="resume" in graph_input,
+    )
 
     try:
         result = await run_orchestrator(
@@ -160,11 +174,14 @@ async def chat(
         result["_pending_interrupt"] = False
 
     # Persist full state snapshot for next turn
+    logger.info("persisting_state", application_id=application_id, phase=result.get("current_phase"))
     await application_repo.save_state(application.id, result)
+    logger.info("state_persisted", application_id=application_id)
 
     # Persist decision to DB if the orchestrator reached a decision
     if result.get("decision") and application_id:
         try:
+            logger.info("persisting_decision", application_id=application_id, decision=result.get("decision"))
             decision_svc = DecisionService(db)
             await decision_svc.persist_decision(
                 application_id=UUID(application_id),
@@ -173,12 +190,18 @@ async def chat(
                 eligibility_score=result.get("eligibility_score", 0.0),
                 eligibility_factors=result.get("eligibility_factors"),
             )
+            logger.info("decision_persisted", application_id=application_id)
         except Exception as e:
             logger.exception("decision_persist_failed", application_id=application_id, error=str(e))
 
+    # Re-fetch application after state save to ensure we have a fresh object
+    logger.info("refetching_application", application_id=application_id)
+    application = await application_repo.get_by_id(application_id)
     new_phase = result.get("current_phase", application.current_phase)
+    logger.info("updating_phase", application_id=application_id, old_phase=application.current_phase, new_phase=new_phase)
     application.current_phase = new_phase
     await application_repo.update(application)
+    logger.info("phase_updated", application_id=application_id, phase=new_phase)
 
     uploaded_documents = [
         UploadedDocument(

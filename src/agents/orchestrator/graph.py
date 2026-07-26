@@ -22,7 +22,12 @@ from src.agents.orchestrator.routes import (
     route_by_phase,
 )
 from src.agents.state import ApplicantState
+from src.agents.orchestrator.phases.document_collection import (
+    enable_document_persistence,
+    set_document_persistence,
+)
 from src.config import settings
+from src.infrastructure.db.session import get_session_factory
 
 logger = structlog.get_logger(__name__)
 
@@ -49,6 +54,14 @@ async def _get_checkpointer() -> AsyncPostgresSaver:
 
 
 async def build_orchestrator_graph():
+    # Inject DB session factory for document persistence.
+    try:
+        factory = get_session_factory(settings)
+        set_document_persistence(factory)
+        enable_document_persistence()
+    except Exception as e:
+        logger.warning("document_persistence_setup_failed", error=str(e))
+
     graph = StateGraph(ApplicantState)
 
     graph.add_node("authentication", authentication_node)

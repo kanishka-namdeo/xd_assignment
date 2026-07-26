@@ -192,5 +192,9 @@ def summarize_extraction_node(state: ApplicantState) -> dict[str, Any]:
     )
 
     return {
+        "extracted_data": extracted_data,
+        "extraction_confidence": extraction_confidence,
+        "gate_status": gate_status,
+        "gate_errors": gate_errors,
         "messages": [{"role": "assistant", "content": message}],
     }

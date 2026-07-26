@@ -20,7 +20,7 @@ class DocumentRepository:
         start = time.perf_counter()
         document = Document(**kwargs)
         self.session.add(document)
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(document)
         logger.info(
             "document_created",
@@ -96,7 +96,7 @@ class DocumentRepository:
             document.extraction_status = extraction_status
         if validation_status is not None:
             document.validation_status = validation_status
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(document)
         logger.debug(
             "document_status_updated",
@@ -111,7 +111,7 @@ class DocumentRepository:
     async def update(self, document: Document) -> Document:
         start = time.perf_counter()
         await self.session.merge(document)
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(document)
         logger.debug(
             "document_updated",

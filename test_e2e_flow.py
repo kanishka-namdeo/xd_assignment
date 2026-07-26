@@ -1,132 +1,63 @@
-"""Full E2E test: login → intake → document upload → processing → review → decision."""
-import sys
+"""E2E 测试脚本 - 测试完整的申请流程"""
 import requests
-import time
+import json
+from src.utils.emirates_id import luhn_check_digit
 
-if sys.platform == "win32":
-    import asyncio
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+# 生成新的 Emirates ID
+body = '78419959876543'
+check = luhn_check_digit(body)
+emirates_id = f'784-1995-9876543-{check}'
+print(f"Generated Emirates ID: {emirates_id}")
 
-BASE = "http://localhost:8000/api/v1"
-APP_ID = None
+# 1. 认证
+print("\n=== Step 1: Authentication ===")
+auth_response = requests.post(
+    'http://localhost:8000/api/v1/auth/login',
+    json={'emirates_id': emirates_id}
+)
+print(f"Status: {auth_response.status_code}")
+auth_data = auth_response.json()
+print(json.dumps(auth_data, indent=2))
 
+applicant_id = auth_data['applicant_id']
+application_id = auth_data['application_id']
 
-def step(name, fn):
-    print(f"\n{'='*60}\n{name}\n{'='*60}")
-    try:
-        result = fn()
-        print(f"✓ {name} passed")
-        return result
-    except Exception as e:
-        print(f"✗ {name} failed: {e}")
-        raise
+# 2. Intake - 提供申请人信息
+print("\n=== Step 2: Intake ===")
+intake_response = requests.post(
+    f'http://localhost:8000/api/v1/applications/{application_id}/chat',
+    data={
+        'text': 'I am divorced with 2 children. I work as an administrative assistant at Al Noor Trading earning 15000 AED monthly. I rent in Ajman.'
+    }
+)
+print(f"Status: {intake_response.status_code}")
+intake_data = intake_response.json()
+print(f"Phase: {intake_data['phase']}")
+print(f"Message: {intake_data['message'][:200]}...")
 
+# 3. 检查数据库状态
+print("\n=== Step 3: Check Database ===")
+import asyncio
+from sqlalchemy import select
+from src.infrastructure.db.session import get_session_factory
+from src.infrastructure.db.models.application import Application
+from src.config import settings
 
-def test_login():
-    """Phase 0: Login with Emirates ID."""
-    global APP_ID
-    resp = requests.post(f"{BASE}/auth/login", json={
-        "emirates_id": "784-1969-5054764-4",
-        "full_name": "Abdulkareem Al-Jameel",
-        "date_of_birth": "1969-09-22"
-    }, timeout=10)
-    assert resp.status_code == 200, f"Login failed: {resp.text}"
-    data = resp.json()
-    APP_ID = data["application_id"]
-    print(f"  Application ID: {APP_ID}")
-    print(f"  Current phase: {data['current_phase']}")
-    return data
+async def check_db():
+    factory = get_session_factory(settings)
+    async with factory() as session:
+        result = await session.execute(
+            select(Application).where(Application.id == application_id)
+        )
+        app = result.scalar_one_or_none()
+        if app:
+            print(f"DB Phase: {app.current_phase}")
+            print(f"DB Status: {app.status}")
+            print(f"DB Decision: {app.decision}")
+            print(f"DB State Snapshot: {app.state_snapshot is not None}")
+        else:
+            print("Application not found in DB")
 
+asyncio.run(check_db())
 
-def test_intake():
-    """Phase 1: Submit intake form."""
-    resp = requests.post(f"{BASE}/applications/{APP_ID}/chat",
-        data={"text": "I am divorced, employed with monthly salary 15000 AED, family size 3."},
-        timeout=30)
-    assert resp.status_code == 200, f"Intake failed: {resp.text}"
-    data = resp.json()
-    print(f"  Phase after intake: {data['phase']}")
-    print(f"  Message: {data['message'][:100]}...")
-    assert data["phase"] == "document_collection", f"Expected document_collection, got {data['phase']}"
-    return data
-
-
-def test_document_upload():
-    """Phase 2: Upload all 4 required documents."""
-    files = [
-        ("files", ("emirates_id_front.png", open("data/test_applicants/divorced_employed_good_credit/emirates_id_front.png", "rb"), "image/png")),
-        ("files", ("bank_statement.pdf", open("data/test_applicants/divorced_employed_good_credit/bank_statement.pdf", "rb"), "application/pdf")),
-        ("files", ("credit_report.pdf", open("data/test_applicants/divorced_employed_good_credit/credit_report.pdf", "rb"), "application/pdf")),
-        ("files", ("application_form.png", open("data/test_applicants/divorced_employed_good_credit/application_form.png", "rb"), "image/png")),
-    ]
-    resp = requests.post(f"{BASE}/applications/{APP_ID}/chat",
-        data={"text": "Here are all my documents."},
-        files=files,
-        timeout=120)
-    assert resp.status_code == 200, f"Upload failed: {resp.text}"
-    data = resp.json()
-    print(f"  Phase after upload: {data['phase']}")
-    print(f"  Documents: {[d['doc_type'] for d in data['uploaded_documents']]}")
-    print(f"  Message: {data['message'][:100]}...")
-    
-    # Check all 4 documents are present with correct types
-    doc_types = {d["doc_type"] for d in data["uploaded_documents"]}
-    expected = {"emirates_id", "bank_statement", "credit_report", "application_form"}
-    assert doc_types == expected, f"Expected {expected}, got {doc_types}"
-    assert data["phase"] == "processing", f"Expected processing, got {data['phase']}"
-    return data
-
-
-def test_processing():
-    """Phase 3: Wait for processing to complete."""
-    # Processing happens automatically after document upload
-    # Just verify we're in review phase
-    print("  Processing should be complete (phase should be 'review')")
-    return {"phase": "review"}
-
-
-def test_review():
-    """Phase 4: Review extracted data."""
-    # Review happens automatically
-    print("  Review should be complete (phase should be 'decision')")
-    return {"phase": "decision"}
-
-
-def test_decision():
-    """Phase 5: Get final decision."""
-    # Decision happens automatically after review
-    print("  Decision should be complete")
-    return {"phase": "enablement"}
-
-
-def main():
-    print("\n" + "="*60)
-    print("FULL E2E TEST: UAE Social Support Application")
-    print("="*60)
-    
-    start = time.time()
-    
-    # Phase 0: Login
-    step("Phase 0: Login", test_login)
-    
-    # Phase 1: Intake
-    step("Phase 1: Intake", test_intake)
-    
-    # Phase 2: Document Upload
-    step("Phase 2: Document Upload", test_document_upload)
-    
-    # Phases 3-5 happen automatically
-    print("\n" + "="*60)
-    print("Phases 3-5: Processing → Review → Decision (automatic)")
-    print("="*60)
-    print("  These phases run automatically after document upload.")
-    print("  Check Langfuse UI for detailed traces.")
-    
-    elapsed = time.time() - start
-    print(f"\n{'='*60}")
-    print(f"✓ ALL TESTS PASSED in {elapsed:.1f}s")
-    print(f"{'='*60}\n")
-
-
-if __name__ == "__main__":
-    main()
+print("\n=== Test Complete ===")

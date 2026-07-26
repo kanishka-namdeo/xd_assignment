@@ -41,14 +41,19 @@ async def decision_node(state: "ApplicantState") -> "ApplicantState":
 
         if eligibility_result.get("gate_status") == "failed":
             logger.warning("eligibility_gate_failed", gate_errors=eligibility_result.get("gate_errors"))
-            decision = "soft_decline"
-            decision_explanation = "Application does not meet hard eligibility requirements."
-            return {
-                "messages": [_make_assistant_message(f"We have reached a decision on your application. Decision: {decision.replace('_', ' ').title()}. {decision_explanation}")],
-                "current_phase": "enablement", "decision": decision, "decision_explanation": decision_explanation,
-                "eligibility_score": eligibility_score, "eligibility_factors": eligibility_factors,
-                "gate_status": "failed", "gate_errors": eligibility_result.get("gate_errors", []),
-            }
+            # Gate 3 failed, but we still proceed to decision agent if we have a score.
+            # The decision agent will use the eligibility score for its deterministic logic.
+            # Only hard-decline if score is very low (< 0.40).
+            if eligibility_score < 0.40:
+                decision = "soft_decline"
+                decision_explanation = "Application does not meet hard eligibility requirements."
+                return {
+                    "messages": [_make_assistant_message(f"We have reached a decision on your application. Decision: {decision.replace('_', ' ').title()}. {decision_explanation}")],
+                    "current_phase": "enablement", "decision": decision, "decision_explanation": decision_explanation,
+                    "eligibility_score": eligibility_score, "eligibility_factors": eligibility_factors,
+                    "gate_status": "failed", "gate_errors": eligibility_result.get("gate_errors", []),
+                }
+            logger.info("gate_failed_but_score_sufficient", score=eligibility_score)
     except Exception as e:
         logger.exception("eligibility_agent_failed", error=str(e))
         services = get_services()

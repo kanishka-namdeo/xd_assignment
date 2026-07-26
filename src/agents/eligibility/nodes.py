@@ -20,24 +20,31 @@ logger = structlog.get_logger(__name__)
 
 
 def _build_applicant_features(state: dict) -> dict[str, Any]:
-    """Extract applicant features from state for ML prediction."""
+    """Extract applicant features from state for ML prediction.
+
+    Falls back to applicant_info (from intake) when extracted_data is unavailable.
+    """
     extracted_data = state.get("extracted_data", {})
     validation_results = state.get("validation_results", {})
+    applicant_info = state.get("applicant_info", {})
 
-    # Extract features from extracted data
+    # Extract features from extracted data, falling back to applicant_info
     features: dict[str, Any] = {}
 
-    # From application form
+    # From application form or applicant_info
     app_form = extracted_data.get("application_form", {})
-    features["monthly_income"] = float(app_form.get("total_monthly_income", 0))
-    features["family_size"] = int(app_form.get("family_size", 1))
+    if not app_form and applicant_info:
+        app_form = applicant_info
+
+    features["monthly_income"] = float(app_form.get("total_monthly_income", 0) or app_form.get("monthly_salary", 0) or 0)
+    features["family_size"] = int(app_form.get("family_size", 1) or 1)
     features["support_category"] = app_form.get("support_category", "")
     features["employment_status"] = app_form.get("employment_status", "")
     features["has_dependents"] = features["family_size"] > 1
 
     # From credit report
     credit_report = extracted_data.get("credit_report", {})
-    features["credit_score"] = int(credit_report.get("credit_score", 600))
+    features["credit_score"] = int(credit_report.get("credit_score", 600) or 600)
 
     # Calculate monthly debt payments from active facilities
     active_facilities = credit_report.get("active_facilities", [])
@@ -46,7 +53,7 @@ def _build_applicant_features(state: dict) -> dict[str, Any]:
         for facility in active_facilities
         if isinstance(facility, dict)
     )
-    
+
     # Debt-to-income ratio: monthly debt payments / monthly income
     monthly_income = features["monthly_income"]
     if monthly_income > 0:
@@ -56,11 +63,11 @@ def _build_applicant_features(state: dict) -> dict[str, Any]:
 
     # From assets/liabilities
     assets = extracted_data.get("assets_liabilities", {})
-    features["net_worth"] = float(assets.get("net_worth", 0))
+    features["net_worth"] = float(assets.get("net_worth", 0) or 0)
 
     # Housing cost ratio
-    monthly_rent = float(app_form.get("monthly_rent", 0))
-    monthly_mortgage = float(app_form.get("monthly_mortgage", 0))
+    monthly_rent = float(app_form.get("monthly_rent", 0) or 0)
+    monthly_mortgage = float(app_form.get("monthly_mortgage", 0) or 0)
     if monthly_income > 0:
         features["housing_cost_ratio"] = (monthly_rent + monthly_mortgage) / monthly_income
     else:
@@ -81,6 +88,8 @@ def _build_applicant_features(state: dict) -> dict[str, Any]:
         family_size=features.get("family_size"),
         credit_score=features.get("credit_score"),
         debt_to_income_ratio=round(features.get("debt_to_income_ratio", 0), 2),
+        support_category=features.get("support_category"),
+        employment_status=features.get("employment_status"),
     )
 
     return features
