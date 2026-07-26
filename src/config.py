@@ -32,8 +32,8 @@ class Settings(BaseSettings):
 
     # Embeddings
     EMBEDDING_PROVIDER: str = "ollama"
-    EMBEDDING_MODEL: str = "nomic-embed-text"
-    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_MODEL: str = "nomic-embed-text:v1.5"
+    EMBEDDING_DIMENSION: int = 768
 
     # Langfuse
     LANGFUSE_ENABLED: bool = True

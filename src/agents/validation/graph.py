@@ -9,10 +9,8 @@ validation results, discrepancies, and confidence scores.
 
 from __future__ import annotations
 
-import sqlite3
-
 import structlog
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.state import ApplicantState
@@ -25,6 +23,7 @@ from src.agents.validation.nodes import (
     generate_clarification_node,
 )
 from src.agents.validation.routes import route_after_critique
+from src.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -73,8 +72,8 @@ def build_validation_graph() -> StateGraph:
     graph.add_edge("finalize_validation", "gate_2_completeness")
     graph.add_edge("gate_2_completeness", END)
 
-    conn = sqlite3.connect("validation_agent.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
+    checkpointer = PostgresSaver.from_conn_string(settings.DATABASE_URL)
+    checkpointer.setup()
     compiled = graph.compile(checkpointer=checkpointer)
 
     logger.info(

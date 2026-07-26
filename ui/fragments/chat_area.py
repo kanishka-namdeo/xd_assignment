@@ -68,8 +68,9 @@ def _append_assistant_message(response: dict[str, Any]) -> None:
         "role": "assistant",
         "content": response.get("message", "I received your message."),
     }
-    # If the response contains decision data, attach it for rendering
-    if response.get("decision"):
+    if response.get("decision_card"):
+        entry["decision_card"] = response["decision_card"]
+    elif response.get("decision"):
         entry["decision"] = response["decision"]
     st.session_state.messages.append(entry)
 
@@ -153,13 +154,22 @@ def _handle_submission(result: ChatInputResult) -> None:
 @st.fragment
 def render_chat_area() -> None:
     """Render the chat message history and input widget."""
+    if not st.session_state.get("messages") and st.session_state.get("state_snapshot"):
+        snapshot = st.session_state["state_snapshot"]
+        if "messages" in snapshot:
+            st.session_state.messages = snapshot["messages"]
+            logger.info("messages_restored_from_snapshot", count=len(st.session_state.messages))
+
     messages = st.session_state.get("messages", [])
 
     for msg in messages:
         with st.chat_message(msg["role"]):
-            # Check if this assistant message contains decision data
-            if msg["role"] == "assistant" and msg.get("decision"):
-                render_decision_card(msg["decision"])
+            if msg["role"] == "assistant" and msg.get("decision_card"):
+                render_decision_card(msg["decision_card"])
+                if msg.get("content"):
+                    st.markdown(msg["content"])
+            elif msg["role"] == "assistant" and msg.get("decision"):
+                render_decision_card({"decision_type": msg["decision"]})
                 if msg.get("content"):
                     st.markdown(msg["content"])
             else:

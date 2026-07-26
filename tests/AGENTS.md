@@ -22,24 +22,34 @@ The following agent test suites cover the core LangGraph agents:
 - `tests/unit/agents/test_orchestrator.py` — 51 tests covering phase routing, authentication, intake, document collection, processing, decision, and enablement flows
 - `tests/unit/agents/test_extraction.py` — 26 tests covering tool invocation, gate integration, output parsing, and multi-document extraction
 - `tests/unit/agents/test_validation.py` — 29 tests covering per-document validation, cross-document comparison, discrepancy classification, clarification generation, confidence scoring, reflexion loop, and gate 2 integration
-- `tests/unit/agents/test_eligibility.py` — Tests covering feature engineering, ML prediction, factor adjustment, and gate 3 integration
+- `tests/unit/agents/test_eligibility.py` — 27 tests covering feature engineering, ML prediction, factor adjustment, and gate 3 integration
 - `tests/unit/agents/test_decision.py` — 39 tests covering decision logic, explanation generation, enablement packaging, formatting, routing, ReAct node behavior, and deterministic synthesis
+
+### Domain Test Files
+- `tests/unit/domain/test_emirates_id.py` — 9 tests covering Emirates ID generation and validation
 
 ### Gate Test Files
 Deterministic validation gates are tested separately under `tests/unit/agents/gates/`:
-- `test_completeness.py` — Document completeness checks
-- `test_document_integrity.py` — Tamper/forgery detection gates
-- `test_eligibility_rules.py` — Hard eligibility rule gates
-- `test_retry_logic.py` — Retry and fallback behavior
+- `test_completeness.py` — 9 tests covering document completeness validation
+- `test_document_integrity.py` — 22 tests covering tamper/forgery detection gates
+- `test_eligibility_rules.py` — 15 tests covering hard eligibility rule gates
+- `test_retry_logic.py` — 12 tests covering retry and fallback behavior
 
 ### Integration and E2E Test Files
 - `tests/integration/test_orchestrator_integration.py` — 4 integration tests covering full phase flow and resume-from-later-phase scenarios
-- `tests/integration/test_agent_workflows.py` — Agent workflow integration tests
-- `tests/integration/test_api.py` — API layer integration tests
-- `tests/integration/test_repositories.py` — Repository integration tests
+- `tests/integration/test_agent_workflows.py` — Agent workflow integration tests (stub)
+- `tests/integration/test_api.py` — API layer integration tests (stub)
+- `tests/integration/test_repositories.py` — Repository integration tests (stub)
 - `tests/e2e/test_full_application_flow.py` — End-to-end tests covering the complete applicant pipeline with synthetic data
 - `tests/e2e/test_application_flow.py` — Application flow E2E tests
+- `tests/e2e/test_full_pipeline_e2e.py` — Full pipeline E2E tests
 - `tests/system/test_eligibility_e2e.py` — Eligibility-specific system-level E2E tests
+
+### Ad-hoc Test Scripts
+Root-level test scripts (not part of the formal test suite):
+- `tests/live_test.py` — Live system testing
+- `tests/db_layer_test.py` — Database layer testing
+- `tests/live_api_test.py` — Live API testing
 
 ### Test Fixtures
 Shared fixtures in `tests/conftest.py`:
@@ -111,6 +121,7 @@ Shared fixtures in `tests/conftest.py`:
 - All tests must pass before merge
 - Coverage report generated on CI
 - No test should depend on external services (except integration tests with Docker)
+- Current test coverage: ~241+ unit tests across agents, gates, and domain
 
 ## Child DOX Index
 None - single-level structure.

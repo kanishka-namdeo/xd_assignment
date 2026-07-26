@@ -118,10 +118,21 @@ When using superpowers workflows, agents MUST follow these web search rules:
 All rules use `alwaysApply: true` and apply to every Agent session:
 
 - **Agent Personality**: All agents must communicate according to the personality defined in `.cursor/rules/agent-personality.mdc`. This Project Rule uses `alwaysApply: true` and complements technical practices with a direct, task-focused, accuracy-oriented communication style. Prioritizes clarity over conversational polish, uses active voice, avoids filler phrases and jargon, and expresses uncertainty explicitly. Personality never overrides task-specific requirements or technical standards.
-- **Python AI Agent Coding Practices**: All agents must follow the scalable Python coding practices documented in `.cursor/rules/python-ai-practices.mdc`. This Project Rule (`alwaysApply: true`) covers modern Python 3.11+, async patterns, LangGraph, FastAPI, Streamlit, Neo4j, PostgreSQL, Qdrant, Langfuse, Scikit-learn, pandas, openpyxl, mimesis, document processing (pymupdf4llm, paddleocr, camelot-py), Pillow, fastembed, ReportLab, reasoning frameworks (ReAct, Reflexion), testing strategies, de-slop code practices (YAGNI, function quality, proper DRY, code smells, readability-first, comment hygiene, Python-specific clean code), and anti-patterns. Based on 2025-2026 latest package versions and best practices.
-- **Proactive Web Search Guidelines**: All agents must follow research-based web search guidelines documented in `.cursor/rules/web-search-guidelines.mdc`. This Project Rule (`alwaysApply: true`) covers when to search proactively based on temporal signals, domain staleness rates, confidence estimation, library/framework queries, and efficiency heuristics. Balances under-search and over-search failure modes. Mentions MCP servers (context7, browser tools) for specialized retrieval.
+- **Python Core Conventions**: Modern Python 3.11.12 syntax, PEP 585/604 type system, and Pydantic v2 patterns. See `.cursor/rules/python-core.mdc` for type hints, unions, and validation conventions.
+- **Python Async Patterns**: Structured concurrency with `asyncio.TaskGroup` for Python 3.11+. See `.cursor/rules/python-async.mdc` for async best practices.
 - **Python Virtual Environment**: Project uses Python 3.11.12 venv at `.venv/`. All Python work must use `.venv\Scripts\python.exe` and `.venv\Scripts\pip.exe` directly. System Python (`python`, `py`, `pip`) must not be used. See `.cursor/rules/python-venv.mdc` for full requirements.
-- **Logging Practices**: All code must follow structured logging conventions using `structlog`. Use `structlog.get_logger(__name__)`, log events in snake_case, include `duration_ms` for timed operations, use `logger.exception()` in except blocks, and never log PII directly. See `.cursor/rules/logging-practices.mdc` for full requirements.
+- **LangGraph Agent Patterns**: Agent orchestration, state management, checkpointing, and reasoning frameworks (ReAct, Reflexion). Use `create_agent` from `langchain.agents`. See `.cursor/rules/langgraph.mdc` for patterns.
+- **FastAPI Patterns**: REST API layer, async/sync separation, dependency injection, database integration. See `.cursor/rules/fastapi.mdc` for conventions.
+- **Streamlit Patterns**: Frontend caching, performance with `@st.fragment`, and navigation with `st.Page` API. Use `app_pages/` directory (not legacy `pages/`). See `.cursor/rules/streamlit.mdc` for patterns.
+- **Neo4j Patterns**: Graph database queries, connection management, AI integration. See `.cursor/rules/neo4j.mdc` for patterns.
+- **Qdrant Patterns**: Vector database architecture, ingestion, querying. See `.cursor/rules/qdrant.mdc` for patterns.
+- **Langfuse Patterns**: v4 observability, instrumentation, tracing. See `.cursor/rules/langfuse.mdc` for integration patterns.
+- **pandas Patterns**: Performance optimization with PyArrow backend, Copy-on-Write, memory management. See `.cursor/rules/pandas.mdc` for best practices.
+- **Document Processing**: PDF, OCR, table extraction, image processing patterns. See `.cursor/rules/document-processing.mdc` for pymupdf4llm, paddleocr, camelot-py, ReportLab, Pillow patterns.
+- **Testing Patterns**: pytest configuration, async testing, mocking strategies. See `.cursor/rules/testing.mdc` for testing conventions.
+- **Logging Practices**: Structured logging with `structlog`, PII redaction, timing. Use `structlog.get_logger(__name__)`, log events in snake_case, include `duration_ms` for timed operations. See `.cursor/rules/logging-practices.mdc` for full requirements.
+- **Proactive Web Search Guidelines**: Research-based web search guidelines for library docs, best practices, and version-specific APIs. See `.cursor/rules/web-search-guidelines.mdc` for when to search.
+- **PostgreSQL Patterns**: Async connection management with asyncpg/psycopg, query optimization, transaction patterns. See `.cursor/rules/postgres.mdc` for conventions.
 
 ### Cursor Terminology Reference
 
@@ -143,36 +154,36 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 ### `src/` - Application Source Code
 
-Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes → Services → Agents/Domain → Infrastructure. Contains LangGraph agents, FastAPI endpoints, database layer, ML models, document processing, and synthetic data generation module.
+Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models, stubs) and `utils/` (shared utilities).
 
 ### `ui/` - Streamlit Frontend
 
-Chat-based user interface for applicant interaction. Uses `st.navigation` with `app_pages/` directory (not `pages/` to avoid legacy conflicts). Implements 7-phase applicant flow: authentication, intake, document collection, processing, review, decision, enablement.
+Chat-based user interface for applicant interaction. Uses `st.navigation` with `app_pages/` directory (not `pages/` to avoid legacy conflicts). Implements 7-phase applicant flow: authentication (Phase 0), intake, document collection, processing, review, decision, enablement (Phases 1-6). Components: decision cards, document status, phase tracker, enablement section, chat input with file upload.
 
 ### `tests/` - Test Suite
 
-Unit, integration, and end-to-end tests mirroring the `src/` structure. Unit tests mock dependencies, integration tests use real databases with mocked LLMs, e2e tests validate full application flow.
+Unit, integration, and end-to-end tests mirroring the `src/` structure. ~241+ unit tests covering agents (174), gates (58), and domain (9). Integration tests: 4 populated, 3 stubs. E2E and system tests for full application flow validation. Root-level ad-hoc test scripts also present.
 
 ### `evals/` - Agent Evaluation
 
-Evaluation framework for agent accuracy and quality. Distinct from unit tests: measures extraction accuracy, validation rule effectiveness, and eligibility scoring performance against ground truth.
+Evaluation framework for agent accuracy and quality. Distinct from unit tests: measures extraction accuracy, validation rule effectiveness, and eligibility scoring performance against ground truth. Currently placeholder — 3 evaluation test files are stubs awaiting implementation.
 
 ### `alembic/` - Database Migrations
 
-SQLAlchemy Alembic migrations for PostgreSQL schema evolution. Tracks changes to applicant, document, application, and extraction tables.
+SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 2 migrations: initial schema (16 tables) and state_snapshot column addition. Tracks changes to applicant, document, application, and extraction tables.
 
 ### `data/` - Test Data Storage
 
-Runtime storage for synthetic test applicant data used in development and testing. Contains cross-document-consistent profiles for validating the application workflow.
+Runtime storage for synthetic test applicant data used in development and testing. Populated by running `scripts/generate_test_data.py`. Contains cross-document-consistent profiles for 3 applicant scenarios (approved, manual_review, soft_decline).
 
 ### `scripts/` - Utility Scripts
 
-Development and operational scripts for data generation and maintenance tasks. Not part of the main application.
+Development and operational scripts for data generation and maintenance tasks. Contains `generate_test_data.py` (279 lines) for generating 3 synthetic test applicant profiles with cross-document consistency.
 
 ### `docs/` - Documentation
 
-Design specifications, architecture decisions, and durable project documentation. Contains brainstorming workflow outputs and technical design specs.
+Design specifications, architecture decisions, and durable project documentation. Contains 6 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns) and Langfuse v4 setup guide.
 
 ### `reference_docs/` - Reference Documentation
 
-Assignment specifications and external reference materials.
+Assignment specifications and external reference materials. Contains the AI Case Study specification with problem statement, solution scope, technology stack recommendations, and evaluation criteria.

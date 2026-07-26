@@ -4,7 +4,7 @@ import time
 from uuid import UUID
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.db.models.application import Application
@@ -73,3 +73,32 @@ class ApplicationRepository:
             found=application is not None,
         )
         return application
+
+    async def get_state(self, application_id: UUID) -> dict | None:
+        start = time.perf_counter()
+        result = await self.session.execute(
+            select(Application.state_snapshot).where(Application.id == application_id)
+        )
+        state = result.scalar_one_or_none()
+        logger.debug(
+            "application_get_state",
+            application_id=str(application_id),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+            found=state is not None,
+        )
+        return state
+
+    async def save_state(self, application_id: UUID, state: dict) -> None:
+        start = time.perf_counter()
+        await self.session.execute(
+            update(Application)
+            .where(Application.id == application_id)
+            .values(state_snapshot=state)
+        )
+        await self.session.flush()
+        logger.debug(
+            "application_save_state",
+            application_id=str(application_id),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+            state_keys=list(state.keys()),
+        )

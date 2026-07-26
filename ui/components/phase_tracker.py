@@ -6,6 +6,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 PHASES: list[tuple[str, str]] = [
+    ("authentication", "Authentication"),
     ("intake", "Intake"),
     ("document_collection", "Document Collection"),
     ("processing", "Processing"),

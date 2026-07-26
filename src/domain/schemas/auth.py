@@ -13,3 +13,4 @@ class AuthLoginResponse(BaseModel):
     application_id: UUID
     is_new_applicant: bool
     current_phase: str
+    state_snapshot: dict | None = None

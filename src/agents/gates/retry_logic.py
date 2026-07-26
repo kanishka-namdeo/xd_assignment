@@ -41,15 +41,15 @@ async def execute_with_gate(
     while attempt <= max_retries:
         try:
             # Execute agent function
-            logger.debug("gate_execution", event="gate_execution", step="agent_func_start", attempt=attempt + 1, max_attempts=max_retries + 1, application_id=state.get("application_id"), document_type=state.get("document_type"))
+            logger.debug("gate_execution", step="agent_func_start", attempt=attempt + 1, max_attempts=max_retries + 1, application_id=state.get("application_id"), document_type=state.get("document_type"))
             updated_state = await agent_func(state)
 
             # Run gate validation
-            logger.debug("gate_execution", event="gate_execution", step="gate_start", attempt=attempt + 1)
+            logger.debug("gate_execution", step="gate_start", attempt=attempt + 1)
             passes, errors = gate_func(updated_state)
 
             if passes:
-                logger.info("gate_passed", event="gate_passed", attempt=attempt + 1, application_id=state.get("application_id"))
+                logger.info("gate_passed", attempt=attempt + 1, application_id=state.get("application_id"))
                 updated_state["gate_passed"] = True
                 updated_state["gate_attempts"] = attempt + 1
                 return updated_state
@@ -58,7 +58,6 @@ async def execute_with_gate(
             last_errors = errors
             logger.warning(
                 "gate_failed",
-                event="gate_failed",
                 attempt=attempt + 1,
                 errors=errors if isinstance(errors, str) else errors,
                 application_id=state.get("application_id"),
@@ -71,14 +70,13 @@ async def execute_with_gate(
             attempt += 1
 
         except Exception as e:
-            logger.exception("gate_error", event="gate_error", attempt=attempt + 1, error=str(e), application_id=state.get("application_id"))
+            logger.exception("gate_error", attempt=attempt + 1, error=str(e), application_id=state.get("application_id"))
             state["gate_error"] = str(e)
             attempt += 1
 
     # Max retries exceeded — escalate to manual review
     logger.warning(
         "gate_escalated",
-        event="gate_escalated",
         total_attempts=attempt,
         max_retries=max_retries,
         final_errors=last_errors,
@@ -115,15 +113,15 @@ def execute_with_gate_sync(
     while attempt <= max_retries:
         try:
             # Execute agent function
-            logger.debug("gate_execution", event="gate_execution", step="agent_func_start", attempt=attempt + 1, max_attempts=max_retries + 1, application_id=state.get("application_id"), document_type=state.get("document_type"))
+            logger.debug("gate_execution", step="agent_func_start", attempt=attempt + 1, max_attempts=max_retries + 1, application_id=state.get("application_id"), document_type=state.get("document_type"))
             updated_state = agent_func(state)
 
             # Run gate validation
-            logger.debug("gate_execution", event="gate_execution", step="gate_start", attempt=attempt + 1)
+            logger.debug("gate_execution", step="gate_start", attempt=attempt + 1)
             passes, errors = gate_func(updated_state)
 
             if passes:
-                logger.info("gate_passed", event="gate_passed", attempt=attempt + 1, application_id=state.get("application_id"))
+                logger.info("gate_passed", attempt=attempt + 1, application_id=state.get("application_id"))
                 updated_state["gate_passed"] = True
                 updated_state["gate_attempts"] = attempt + 1
                 return updated_state
@@ -132,7 +130,6 @@ def execute_with_gate_sync(
             last_errors = errors
             logger.warning(
                 "gate_failed",
-                event="gate_failed",
                 attempt=attempt + 1,
                 errors=errors if isinstance(errors, str) else errors,
                 application_id=state.get("application_id"),
@@ -145,14 +142,13 @@ def execute_with_gate_sync(
             attempt += 1
 
         except Exception as e:
-            logger.exception("gate_error", event="gate_error", attempt=attempt + 1, error=str(e), application_id=state.get("application_id"))
+            logger.exception("gate_error", attempt=attempt + 1, error=str(e), application_id=state.get("application_id"))
             state["gate_error"] = str(e)
             attempt += 1
 
     # Max retries exceeded — escalate to manual review
     logger.warning(
         "gate_escalated",
-        event="gate_escalated",
         total_attempts=attempt,
         max_retries=max_retries,
         final_errors=last_errors,

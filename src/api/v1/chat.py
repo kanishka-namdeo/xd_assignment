@@ -1,24 +1,29 @@
 """Chat and conversation endpoints."""
 
 from collections.abc import AsyncGenerator
+from pathlib import Path
 import time
-from typing import Annotated
+from typing import Annotated, Any
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.agents.decision.tools import decision_formatting_tool
 from src.api.deps import AsyncDB
-from src.domain.schemas.chat import ChatRequest, ChatResponse, UploadedDocument
+from src.domain.schemas.chat import ChatRequest, ChatResponse, InterruptData, UploadedDocument
 from src.infrastructure.db.repositories.application_repo import ApplicationRepository
 from src.infrastructure.llm.client import LLMClient
 from src.infrastructure.observability.langfuse_client import LangfuseClient
 from src.services.agent_runner import run as run_orchestrator
+from src.services.decision_service import DecisionService
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["chat"])
+
+UPLOAD_DIR = Path("data/uploads")
 
 
 @router.get("/health/llm")
@@ -63,17 +68,18 @@ async def health_llm() -> dict:
 )
 async def chat(
     application_id: str,
-    request: ChatRequest,
     db: AsyncDB,
     fastapi_request: Request,
+    text: str = Form(...),
+    files: list[UploadFile] = File(default=[]),
 ) -> ChatResponse:
-    logger.info("request_received", event="request_received", application_id=application_id, endpoint="chat")
+    logger.info("request_received", application_id=application_id, endpoint="chat")
 
     application_repo = ApplicationRepository(db)
     application = await application_repo.get_by_id(application_id)
 
     if application is None:
-        logger.warning("request_failed", event="request_failed", application_id=application_id, detail="Application not found")
+        logger.warning("request_failed", application_id=application_id, detail="Application not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found",
@@ -83,23 +89,92 @@ async def chat(
 
     langfuse_client: LangfuseClient | None = getattr(fastapi_request.app.state, "langfuse", None)
 
+    # Save uploaded files to disk and collect their paths
+    file_paths: list[str] = []
+    if files:
+        upload_dir = UPLOAD_DIR / application_id
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        for upload in files:
+            if upload.filename is None:
+                continue
+            dest = upload_dir / upload.filename
+            content = await upload.read()
+            dest.write_bytes(content)
+            file_paths.append(str(dest))
+            logger.info("file_saved", application_id=application_id, filename=upload.filename, size_bytes=len(content))
+
+    # Load persisted state from previous turns
+    previous_state = await application_repo.get_state(application.id)
+
+    # Build input: start from previous state (if any), overlay new turn input
+    graph_input: dict[str, Any] = dict(previous_state) if previous_state else {}
+
+    # Check if the previous turn resulted in an interrupt (graph paused waiting for user)
+    # If so, resume with the user's text as the resume payload
+    had_pending_interrupt = previous_state and previous_state.get("_pending_interrupt")
+
+    if had_pending_interrupt:
+        # Resume the graph with the user's response
+        graph_input["resume"] = text
+        # Don't add a new user message - the interrupt resume handles it
+        graph_input["messages"] = previous_state.get("messages", [])
+    else:
+        # Fresh invocation with new user message
+        graph_input["messages"] = [{"role": "user", "content": text}]
+
+    graph_input["current_phase"] = application.current_phase
+    graph_input["applicant_id"] = str(application.applicant_id)
+    graph_input["application_id"] = str(application.id)
+    graph_input["uploaded_files"] = file_paths
+
     try:
         result = await run_orchestrator(
-            {
-                "messages": [{"role": "user", "content": request.text}],
-                "current_phase": application.current_phase,
-                "applicant_id": str(application.applicant_id),
-                "application_id": str(application.id),
-                "uploaded_files": request.file_paths,
-            },
+            graph_input,
             langfuse_client=langfuse_client,
         )
     except Exception as e:
-        logger.exception("request_failed", event="request_failed", application_id=application_id, error=str(e))
+        logger.exception("request_failed", application_id=application_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Chat processing error: {str(e)}",
         )
+
+    # Check if the graph paused at an interrupt point
+    interrupt_data = None
+    if result.get("__interrupt__"):
+        interrupt_value = result["__interrupt__"][0].value if isinstance(result["__interrupt__"], list) else result["__interrupt__"].value
+        if isinstance(interrupt_value, dict):
+            interrupt_data = InterruptData(
+                question=interrupt_value.get("question", ""),
+                phase=interrupt_value.get("phase", ""),
+                missing_fields=interrupt_value.get("missing_fields"),
+                missing_documents=interrupt_value.get("missing_documents"),
+                discrepancies=interrupt_value.get("discrepancies"),
+                recommendations=interrupt_value.get("recommendations"),
+            )
+        # Mark that we have a pending interrupt for the next turn
+        result["_pending_interrupt"] = True
+    else:
+        # Clear the pending interrupt flag
+        result["_pending_interrupt"] = False
+
+    # Persist full state snapshot for next turn
+    await application_repo.save_state(application.id, result)
+
+    # Persist decision to DB if the orchestrator reached a decision
+    if result.get("decision") and application_id:
+        try:
+            decision_svc = DecisionService(db)
+            await decision_svc.persist_decision(
+                application_id=UUID(application_id),
+                decision=result["decision"],
+                decision_explanation=result.get("decision_explanation", ""),
+                eligibility_score=result.get("eligibility_score", 0.0),
+                eligibility_factors=result.get("eligibility_factors"),
+            )
+        except Exception as e:
+            logger.exception("decision_persist_failed", application_id=application_id, error=str(e))
 
     new_phase = result.get("current_phase", application.current_phase)
     application.current_phase = new_phase
@@ -115,15 +190,39 @@ async def chat(
     ]
 
     if new_phase != previous_phase:
-        logger.info("phase_transition", event="phase_transition", application_id=application_id, from_phase=previous_phase, to_phase=new_phase)
+        logger.info("phase_transition", application_id=application_id, from_phase=previous_phase, to_phase=new_phase)
 
-    logger.info("response_sent", event="response_sent", application_id=application_id, phase=new_phase, document_count=len(uploaded_documents))
+    logger.info("response_sent", application_id=application_id, phase=new_phase, document_count=len(uploaded_documents))
+
+    formatted_card = None
+    if result.get("decision"):
+        try:
+            formatted_card = decision_formatting_tool.invoke({
+                "decision": result["decision"],
+                "explanation": result.get("decision_explanation", ""),
+                "enablement_recommendations": {"recommendations": result.get("enablement_recommendations", [])},
+                "applicant_context": {
+                    "support_category": result.get("applicant_info", {}).get("support_category", "unknown"),
+                    "family_size": result.get("applicant_info", {}).get("family_size", 1),
+                },
+            })
+        except Exception as e:
+            logger.warning("decision_formatting_failed", application_id=application_id, error=str(e))
+
+    # Get the message content
+    messages = result.get("messages", [])
+    message_content = ""
+    if messages:
+        last_msg = messages[-1]
+        message_content = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content", "")
 
     return ChatResponse(
-        message=result["messages"][-1].content if hasattr(result["messages"][-1], 'content') else result["messages"][-1]["content"],
+        message=message_content,
         phase=new_phase,
         uploaded_documents=uploaded_documents,
         decision=result.get("decision"),
+        decision_card=formatted_card,
+        interrupt=interrupt_data,
     )
 
 
@@ -161,7 +260,7 @@ async def chat_stream(
     Yields text deltas from the LLM in SSE format (data: <delta>\\n\\n).
     Ends with data: [DONE]\\n\\n.
     """
-    logger.info("request_received", event="request_received", application_id=application_id, endpoint="chat_stream")
+    logger.info("request_received", application_id=application_id, endpoint="chat_stream")
 
     application_repo = ApplicationRepository(db)
     application = await application_repo.get_by_id(application_id)

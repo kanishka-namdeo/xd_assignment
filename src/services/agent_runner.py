@@ -1,24 +1,32 @@
 """LangGraph agent execution wrapper."""
 
 import time
+from typing import Any
 
 import structlog
+from langgraph.types import Command
 from src.agents.orchestrator.graph import build_orchestrator_graph
 from src.agents.orchestrator.nodes import inject_llm_client
 from src.infrastructure.llm.client import LLMClient
 from src.infrastructure.observability.langfuse_client import LangfuseClient
+from src.services.extraction_pipeline import persist_results
 
 logger = structlog.get_logger(__name__)
 
 
 async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -> dict:
+    """Run the orchestrator graph.
+
+    On first invocation, runs the graph from the input state.
+    On subsequent invocations with the same thread_id, resumes from checkpoint.
+    If the graph pauses at an interrupt(), returns the interrupt data.
+    """
     start_ms = time.perf_counter()
     thread_id = input_data.get("application_id", "default")
     applicant_id = input_data.get("applicant_id")
 
     logger.info(
         "graph_invocation",
-        event="graph_invocation",
         thread_id=thread_id,
         applicant_id=applicant_id,
         current_phase=input_data.get("current_phase"),
@@ -43,29 +51,45 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
         inject_llm_client(llm_client)
 
         graph = build_orchestrator_graph()
-        config = {
+        config: dict[str, Any] = {
             "configurable": {
                 "thread_id": thread_id,
             },
             "callbacks": callbacks if callbacks else None,
         }
-        result = await graph.ainvoke(input_data, config=config)
+
+        # Check if this is a resume invocation (user responded to an interrupt)
+        # If input_data contains a "resume" key, use Command(resume=...)
+        resume_payload = input_data.get("resume")
+        if resume_payload is not None:
+            # Resume from checkpoint with the user's response
+            result = await graph.ainvoke(
+                Command(resume=resume_payload),
+                config=config,
+            )
+        else:
+            # Fresh invocation
+            result = await graph.ainvoke(input_data, config=config)
+
+        # Persist extraction/validation results to PostgreSQL, Qdrant, Neo4j
+        # This is the service-layer persistence step — nodes only produce state updates.
+        if result.get("extraction_results"):
+            await persist_results(result)
 
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.info(
             "graph_complete",
-            event="graph_complete",
             thread_id=thread_id,
             duration_ms=round(duration_ms, 2),
             result_phase=result.get("current_phase"),
             decision=result.get("decision"),
+            has_interrupt=bool(result.get("__interrupt__")),
         )
         return result
     except Exception as e:
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.exception(
             "graph_error",
-            event="graph_error",
             thread_id=thread_id,
             duration_ms=round(duration_ms, 2),
             error=str(e),

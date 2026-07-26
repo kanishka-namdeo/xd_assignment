@@ -20,38 +20,118 @@ def _render_next_steps(steps: list[str]) -> str:
     return f"<ol style='padding-left:20px;margin:8px 0;'>{items}</ol>"
 
 
-def render_decision_card(decision: dict[str, Any]) -> None:
-    """Render a styled decision card based on the decision type.
+def render_decision_card(card: dict[str, Any]) -> None:
+    """Render a styled decision card from the formatted card dict.
 
     Args:
-        decision: Dictionary containing decision data with keys:
-            - decision_type: "approved" | "manual_review" | "soft_decline"
-            - eligibility_score: int (0-100)
-            - support_amount: str (optional, for approved)
-            - support_duration: str (optional, for approved)
-            - key_factors: list[str] (factors that led to the decision)
-            - reasons: list[str] (for soft_decline)
-            - unresolved_discrepancies: list[str] (for manual_review)
-            - additional_info_needed: list[str] (for manual_review)
-            - improvement_suggestions: list[str] (for soft_decline)
-            - appeal_process: str (for soft_decline)
+        card: Dictionary containing formatted decision card data with keys:
+            - title: str (card header title)
+            - decision: str (approved/soft_decline/manual_review)
+            - color: str (green/red/orange)
+            - icon: str (check_circle/cancel/pending)
+            - explanation: str (human-readable explanation)
             - next_steps: list[str]
+            - enablement_section: dict | None (optional enablement programs)
     """
-    decision_type = decision.get("decision_type", "unknown")
+    decision_type = card.get("decision", card.get("decision_type", "unknown"))
     logger.info(
         "decision_card_rendered",
         decision_type=decision_type,
-        eligibility_score=decision.get("eligibility_score"),
+        has_enablement=card.get("enablement_section") is not None,
     )
 
-    if decision_type == "approved":
-        _render_approved_card(decision)
+    if _is_formatted_card(card):
+        _render_formatted_card(card)
+    elif decision_type == "approved":
+        _render_approved_card(card)
     elif decision_type == "manual_review":
-        _render_manual_review_card(decision)
+        _render_manual_review_card(card)
     elif decision_type == "soft_decline":
-        _render_soft_decline_card(decision)
+        _render_soft_decline_card(card)
     else:
         st.warning(f"Unknown decision type: {decision_type}")
+
+
+def _is_formatted_card(card: dict[str, Any]) -> bool:
+    """Check if card is from the new decision_formatting_tool format."""
+    return "title" in card and "color" in card and "explanation" in card
+
+
+def _render_formatted_card(card: dict[str, Any]) -> None:
+    """Render a card produced by decision_formatting_tool."""
+    title = card.get("title", "Decision")
+    color = card.get("color", "orange")
+    explanation = card.get("explanation", "")
+    next_steps = card.get("next_steps", [])
+    enablement_section = card.get("enablement_section")
+
+    color_map = {
+        "green": {"bg": "#d4edda", "border": "#28a745", "text": "#155724", "subtext": "#5a7a5f", "icon_bg": "#28a745", "icon_char": "\u2713"},
+        "red": {"bg": "#f8d7da", "border": "#dc3545", "text": "#721c24", "subtext": "#7a4545", "icon_bg": "#dc3545", "icon_char": "\u2717"},
+        "orange": {"bg": "#fff3cd", "border": "#ffc107", "text": "#856404", "subtext": "#7a6c45", "icon_bg": "#ffc107", "icon_char": "!"},
+    }
+    c = color_map.get(color, color_map["orange"])
+
+    steps_html = _render_next_steps(next_steps) if next_steps else ""
+
+    enablement_html = ""
+    if enablement_section and enablement_section.get("items"):
+        items = enablement_section["items"]
+        section_title = enablement_section.get("title", "Recommended Support Programs")
+        item_rows = "".join(
+            f"<div style='background:white;border-radius:6px;padding:10px 14px;margin-bottom:6px;'>"
+            f"<strong style='color:{c['text']};'>{_escape_html(item.get('title', ''))}</strong>"
+            f"<p style='margin:4px 0 0 0;color:{c['subtext']};font-size:13px;'>{_escape_html(item.get('description', ''))}</p>"
+            f"</div>"
+            for item in items
+        )
+        enablement_html = f"""
+        <details style='margin-top:16px;'>
+            <summary style='cursor:pointer;color:{c["text"]};font-size:16px;font-weight:600;margin-bottom:8px;'>{section_title}</summary>
+            <div style='margin-top:8px;'>{item_rows}</div>
+        </details>
+        """
+
+    card_html = f"""
+    <div style='
+        background: linear-gradient(135deg, {c["bg"]} 0%, {c["bg"]} 100%);
+        border-left: 6px solid {c["border"]};
+        border-radius: 12px;
+        padding: 24px 28px;
+        margin: 16px 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    '>
+        <div style='display:flex;align-items:center;gap:12px;margin-bottom:16px;'>
+            <div style='
+                width:48px;height:48px;border-radius:50%;
+                background:{c["icon_bg"]};color:white;
+                display:flex;align-items:center;justify-content:center;
+                font-size:24px;font-weight:bold;
+            '>{c["icon_char"]}</div>
+            <div>
+                <h3 style='margin:0;color:{c["text"]};font-size:22px;'>{title}</h3>
+            </div>
+        </div>
+
+        <div style='
+            background:white;border-radius:8px;padding:16px;
+            margin-bottom:16px;
+            box-shadow:0 1px 4px rgba(0,0,0,0.05);
+        '>
+            <p style='margin:0;color:{c["text"]};font-size:14px;line-height:1.6;'>{explanation}</p>
+        </div>
+
+        {f'<div><h4 style="margin:0 0 8px 0;color:{c["text"]};font-size:16px;">Next Steps</h4>{steps_html}</div>' if steps_html else ''}
+
+        {enablement_html}
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
+
+
+def _escape_html(text: str) -> str:
+    """Escape HTML special characters."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
 def _render_approved_card(decision: dict[str, Any]) -> None:

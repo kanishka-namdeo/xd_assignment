@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import structlog
-from langfuse.decorators import observe
+from langfuse import observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.db.repositories.application_repo import ApplicationRepository

@@ -64,9 +64,18 @@ def pii_redactor(
 def configure_logging(log_level: str = "INFO", log_format: str = "console") -> None:
     level = getattr(logging, log_level.upper(), logging.INFO)
 
-    renderer: structlog.types.Processor = (
-        JSONRenderer() if log_format == "json" else ConsoleRenderer(colors=True)
-    )
+    # Detect if running in Streamlit context to avoid color output issues
+    import sys
+    is_streamlit = "streamlit" in sys.modules
+    
+    renderer: structlog.types.Processor
+    if log_format == "json":
+        renderer = JSONRenderer()
+    elif is_streamlit:
+        # Use plain console renderer without colors for Streamlit
+        renderer = ConsoleRenderer(colors=False)
+    else:
+        renderer = ConsoleRenderer(colors=True)
 
     structlog.configure(
         processors=[

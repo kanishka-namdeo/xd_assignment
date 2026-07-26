@@ -1,12 +1,12 @@
 """Shared AgentState TypedDict with reducers."""
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import add_messages
 
 
-class ApplicantState(dict):
+class ApplicantState(TypedDict):
     """State shared across all agents in the 7-phase applicant flow."""
 
     messages: Annotated[list[dict[str, Any]], add_messages]
@@ -35,3 +35,4 @@ class ApplicantState(dict):
     _next_action: str | None
     _clarification_questions: list[dict[str, Any]]
     enablement_recommendations: list[str]
+    new_documents_uploaded: bool

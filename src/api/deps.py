@@ -25,30 +25,30 @@ logger = structlog.get_logger(__name__)
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     session_factory = get_session_factory(settings)
     db = session_factory()
-    logger.debug("dependency_created", event="db_session_created")
+    logger.debug("dependency_created", )
     try:
         yield db
     finally:
         await db.close()
-        logger.debug("dependency_closed", event="db_session_closed")
+        logger.debug("dependency_closed", )
 
 
 async def get_neo4j() -> AsyncGenerator[AsyncDriver, None]:
     driver = get_neo4j_driver(settings)
-    logger.debug("dependency_created", event="neo4j_driver_created")
+    logger.debug("dependency_created", )
     try:
         yield driver
     finally:
-        logger.debug("dependency_closed", event="neo4j_driver_closed")
+        logger.debug("dependency_closed", )
 
 
 async def get_qdrant() -> AsyncGenerator[AsyncQdrantClient, None]:
     client = get_qdrant_client(settings)
-    logger.debug("dependency_created", event="qdrant_client_created")
+    logger.debug("dependency_created", )
     try:
         yield client
     finally:
-        logger.debug("dependency_closed", event="qdrant_client_closed")
+        logger.debug("dependency_closed", )
 
 
 def get_application_service(db: AsyncSession = Depends(get_db)) -> ApplicationService:

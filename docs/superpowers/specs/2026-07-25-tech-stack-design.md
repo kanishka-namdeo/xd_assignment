@@ -114,7 +114,7 @@ STREAMLAKE_BASE_URL=https://vanchin.streamlake.ai/api/gateway/coding/v1
 STREAMLAKE_API_KEY=<your-api-key>
 STREAMLAKE_MODEL=kat-coder-pro-v2.5
 EMBEDDING_PROVIDER=ollama        # Always local
-EMBEDDING_MODEL=nomic-embed-text
+EMBEDDING_MODEL=nomic-embed-text:v1.5
 ```
 
 **Recommended Local Models (Ollama)**:
@@ -147,19 +147,20 @@ EMBEDDING_MODEL=nomic-embed-text
 
 ---
 
-### 8. API Serving: FastAPI 0.139.2
+### 8. API Serving: FastAPI 0.140.0
 
 **Decision**: Use FastAPI for the REST API layer.
 
 **Rationale**:
 - **Required by spec**: The spec explicitly calls for FastAPI.
 - **Async/sync separation**: Use `async def` for endpoints that call Ollama or Qdrant (I/O-bound). Use `def` for endpoints that call scikit-learn (CPU-bound, runs in thread pool). This follows FastAPI best practices.
-- **Pydantic v2 integration**: Native request/response validation with `strict=True` for business-critical fields. FastAPI 0.139.2 requires pydantic >=2.9.0.
+- **Pydantic v2 integration**: Native request/response validation with `strict=True` for business-critical fields. FastAPI 0.140.0 requires pydantic >=2.9.0.
 - **API versioning**: Use `/api/v1/applications/`, `/api/v1/eligibility/` for clean versioning.
 - **Dependency injection**: Use `Depends` for database sessions, config, and auth. Design for `dependency_overrides` in tests.
 - **Performance**: Connection pooling (`pool_size=10`, `max_overflow=20`), `pool_pre_ping=True` for cloud environments.
+- **Memory optimization**: v0.140.0 includes memory optimization refactor in dependencies handling.
 
-**Version**: `fastapi==0.139.2` (released 2026-07-16, requires Python >=3.10)
+**Version**: `fastapi==0.140.0` (released 2026-07-24, requires Python >=3.10)
 
 ---
 
@@ -270,7 +271,7 @@ EMBEDDING_MODEL=nomic-embed-text
 .\.venv\Scripts\pip.exe install neo4j==6.2.0
 .\.venv\Scripts\pip.exe install langfuse==4.14.1
 .\.venv\Scripts\pip.exe install scikit-learn==1.9.0
-.\.venv\Scripts\pip.exe install "fastapi[standard]==0.139.2"
+.\.venv\Scripts\pip.exe install "fastapi[standard]==0.140.0"
 .\.venv\Scripts\pip.exe install streamlit==1.60.0
 .\.venv\Scripts\pip.exe install pydantic==2.13.4
 .\.venv\Scripts\pip.exe install pydantic-settings>=2.0.0

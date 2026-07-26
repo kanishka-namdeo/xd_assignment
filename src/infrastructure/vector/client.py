@@ -11,7 +11,7 @@ logger = structlog.get_logger(__name__)
 _client: AsyncQdrantClient | None = None
 
 COLLECTION_NAME = "document_embeddings"
-EMBEDDING_DIM = 384  # Matches nomic-embed-text via FastEmbed
+EMBEDDING_DIM = 768  # Matches nomic-embed-text:v1.5 embedding length
 
 
 def get_client(settings: Settings) -> AsyncQdrantClient:

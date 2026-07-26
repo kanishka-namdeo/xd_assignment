@@ -63,13 +63,13 @@ async def create_application(
     db: AsyncDB,
 ) -> ApplicationResponse:
     """Create a new application for an applicant."""
-    logger.info("request_received", event="application_create", applicant_id=str(request.applicant_id), support_category=request.support_category)
+    logger.info("request_received", applicant_id=str(request.applicant_id), support_category=request.support_category)
     service = ApplicationService(db)
     application = await service.create_application(
         applicant_id=request.applicant_id,
         support_category=request.support_category,
     )
-    logger.info("response_sent", event="application_created", application_id=str(application.id), applicant_id=str(application.applicant_id))
+    logger.info("response_sent", application_id=str(application.id), applicant_id=str(application.applicant_id))
     return _to_application_response(application)
 
 
@@ -83,16 +83,16 @@ async def get_application(
     db: AsyncDB,
 ) -> ApplicationResponse:
     """Get application status and details."""
-    logger.info("request_received", event="application_get", application_id=str(application_id))
+    logger.info("request_received", application_id=str(application_id))
     service = ApplicationService(db)
     application = await service.get_application(application_id)
     if application is None:
-        logger.warning("request_failed", event="application_not_found", application_id=str(application_id))
+        logger.warning("request_failed", application_id=str(application_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found",
         )
-    logger.info("response_sent", event="application_get", application_id=str(application_id), status=application.status)
+    logger.info("response_sent", application_id=str(application_id), status=application.status)
     return _to_application_response(application)
 
 
@@ -107,18 +107,18 @@ async def update_application_status(
     db: AsyncDB,
 ) -> ApplicationResponse:
     """Update application status and phase."""
-    logger.info("request_received", event="application_status_update", application_id=str(application_id), new_status=request.status, new_phase=request.phase)
+    logger.info("request_received", application_id=str(application_id), new_status=request.status, new_phase=request.phase)
     service = ApplicationService(db)
     application = await service.update_application_status(
         application_id, request.status, request.phase
     )
     if application is None:
-        logger.warning("request_failed", event="application_not_found", application_id=str(application_id))
+        logger.warning("request_failed", application_id=str(application_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found",
         )
-    logger.info("response_sent", event="application_status_updated", application_id=str(application_id), status=request.status)
+    logger.info("response_sent", application_id=str(application_id), status=request.status)
     return _to_application_response(application)
 
 
@@ -132,11 +132,11 @@ async def list_documents(
     db: AsyncDB,
 ) -> DocumentListResponse:
     """List all documents for an application."""
-    logger.info("request_received", event="documents_list", application_id=str(application_id))
+    logger.info("request_received", application_id=str(application_id))
     app_service = ApplicationService(db)
     application = await app_service.get_application(application_id)
     if application is None:
-        logger.warning("request_failed", event="application_not_found", application_id=str(application_id))
+        logger.warning("request_failed", application_id=str(application_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found",
@@ -144,7 +144,7 @@ async def list_documents(
 
     doc_service = DocumentService(db)
     documents = await doc_service.list_documents(application.applicant_id)
-    logger.info("response_sent", event="documents_list", application_id=str(application_id), count=len(documents))
+    logger.info("response_sent", application_id=str(application_id), count=len(documents))
     return DocumentListResponse(
         documents=[_to_document_response(d) for d in documents],
         total=len(documents),
@@ -163,11 +163,11 @@ async def upload_document(
     document_type: str | None = Form(None),
 ) -> DocumentResponse:
     """Upload a document for an application (multipart/form-data)."""
-    logger.info("request_received", event="document_upload", application_id=str(application_id), file_name=file.filename, document_type=document_type)
+    logger.info("request_received", application_id=str(application_id), file_name=file.filename, document_type=document_type)
     app_service = ApplicationService(db)
     application = await app_service.get_application(application_id)
     if application is None:
-        logger.warning("request_failed", event="application_not_found", application_id=str(application_id))
+        logger.warning("request_failed", application_id=str(application_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found",
@@ -179,7 +179,7 @@ async def upload_document(
         file=file,
         document_type=document_type,
     )
-    logger.info("response_sent", event="document_uploaded", application_id=str(application_id), document_id=str(document.id), document_type=document_type)
+    logger.info("response_sent", application_id=str(application_id), document_id=str(document.id), document_type=document_type)
     return _to_document_response(document)
 
 
@@ -193,11 +193,11 @@ async def delete_document(
     db: AsyncDB,
 ) -> dict:
     """Delete a document from an application."""
-    logger.info("request_received", event="document_delete", application_id=str(application_id), document_id=str(document_id))
+    logger.info("request_received", application_id=str(application_id), document_id=str(document_id))
     app_service = ApplicationService(db)
     application = await app_service.get_application(application_id)
     if application is None:
-        logger.warning("request_failed", event="application_not_found", application_id=str(application_id))
+        logger.warning("request_failed", application_id=str(application_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found",
@@ -206,10 +206,10 @@ async def delete_document(
     doc_service = DocumentService(db)
     deleted = await doc_service.delete_document(document_id)
     if not deleted:
-        logger.warning("request_failed", event="document_not_found", document_id=str(document_id))
+        logger.warning("request_failed", document_id=str(document_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found",
         )
-    logger.info("response_sent", event="document_deleted", application_id=str(application_id), document_id=str(document_id))
+    logger.info("response_sent", application_id=str(application_id), document_id=str(document_id))
     return {"status": "deleted", "document_id": str(document_id)}

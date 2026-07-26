@@ -41,22 +41,6 @@ def get_engine(settings: Settings):
             pool_recycle=1800,
         )
 
-        @_engine.pool.listen("connect")
-        def on_connect(dbapi_conn, connection_record):
-            logger.debug("db_pool_connect")
-
-        @_engine.pool.listen("disconnect")
-        def on_disconnect(dbapi_conn, connection_record):
-            logger.debug("db_pool_disconnect")
-
-        @_engine.pool.listen("checkout")
-        def on_checkout(dbapi_conn, connection_record, connection_proxy):
-            logger.debug("db_pool_checkout")
-
-        @_engine.pool.listen("checkin")
-        def on_checkin(dbapi_conn, connection_record, connection_proxy):
-            logger.debug("db_pool_checkin")
-
     return _engine
 
 

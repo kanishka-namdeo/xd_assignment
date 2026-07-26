@@ -1,5 +1,6 @@
 """Decision service - make final application decisions based on eligibility and validation."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 import structlog
@@ -59,6 +60,41 @@ class DecisionService:
             "eligibility_score": eligibility_score,
             "unresolved_issues": len(unresolved),
         }
+
+    async def persist_decision(
+        self,
+        application_id: UUID,
+        decision: str,
+        decision_explanation: str,
+        eligibility_score: float,
+        eligibility_factors: dict | None = None,
+    ) -> None:
+        """Persist decision results computed by the orchestrator graph.
+
+        The decision node only produces state updates; this method writes
+        them to PostgreSQL so the service layer owns all DB I/O.
+        """
+        start = datetime.now(timezone.utc)
+        application = await self.application_repo.get_by_id(application_id)
+        if application is None:
+            logger.warning("application_not_found", application_id=str(application_id))
+            return
+
+        application.decision = decision
+        application.decision_explanation = decision_explanation
+        application.eligibility_score = eligibility_score
+        if eligibility_factors is not None:
+            application.eligibility_factors = eligibility_factors
+        await self.application_repo.update(application)
+
+        duration_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+        logger.info(
+            "decision_persisted",
+            application_id=str(application_id),
+            decision=decision,
+            eligibility_score=eligibility_score,
+            duration_ms=round(duration_ms, 2),
+        )
 
     async def get_decision(self, application_id: UUID) -> dict | None:
         """Retrieve stored decision results."""

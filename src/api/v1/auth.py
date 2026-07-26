@@ -22,10 +22,10 @@ async def login(
     request: AuthLoginRequest,
     db: AsyncDB,
 ) -> AuthLoginResponse:
-    logger.info("auth_attempt", event="auth_attempt", id_type="emirates_id", id_checksum_valid=validate_emirates_id(request.emirates_id))
+    logger.info("auth_attempt", id_type="emirates_id", id_checksum_valid=validate_emirates_id(request.emirates_id))
 
     if not validate_emirates_id(request.emirates_id):
-        logger.warning("auth_failed", event="auth_failed", reason="invalid_emirates_id_checksum")
+        logger.warning("auth_failed", reason="invalid_emirates_id_checksum")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Emirates ID format or checksum",
@@ -40,16 +40,21 @@ async def login(
     if is_new:
         applicant = await applicant_repo.create(identity_number=request.emirates_id)
         application = await application_repo.create(applicant_id=applicant.id)
-        logger.info("auth_success", event="auth_success", applicant_type="new", applicant_id=str(applicant.id), application_id=str(application.id))
+        logger.info("auth_success", applicant_type="new", applicant_id=str(applicant.id), application_id=str(application.id))
+        state_snapshot = None
     else:
         application = await application_repo.get_latest_by_applicant(applicant.id)
         if application is None:
             application = await application_repo.create(applicant_id=applicant.id)
-        logger.info("auth_success", event="auth_success", applicant_type="returning", applicant_id=str(applicant.id), application_id=str(application.id))
+            state_snapshot = None
+        else:
+            state_snapshot = application.state_snapshot
+        logger.info("auth_success", applicant_type="returning", applicant_id=str(applicant.id), application_id=str(application.id))
 
     return AuthLoginResponse(
         applicant_id=applicant.id,
         application_id=application.id,
         is_new_applicant=is_new,
         current_phase=application.current_phase,
+        state_snapshot=state_snapshot,
     )

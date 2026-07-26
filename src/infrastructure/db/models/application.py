@@ -31,6 +31,7 @@ class Application(Base):
     decision_explanation: Mapped[str | None]
     phase_completed: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     eligibility_factors: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    state_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now()

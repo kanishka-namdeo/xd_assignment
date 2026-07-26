@@ -56,7 +56,7 @@ def handle_login() -> None:
     if error:
         st.session_state.login_error = error
         logger.warning("login_validation_failed", reason="invalid_format")
-        st.rerun()
+        return
 
     digits = _normalize_emirates_id(raw)
     attempts = st.session_state.get("login_attempts", 0) + 1
@@ -73,12 +73,10 @@ def handle_login() -> None:
     except requests.ConnectionError:
         st.session_state.login_error = "Cannot connect to the server. Please try again later."
         logger.error("login_connection_failed")
-        st.rerun()
         return
     except requests.Timeout:
         st.session_state.login_error = "Request timed out. Please try again."
         logger.error("login_timeout")
-        st.rerun()
         return
 
     if resp.status_code == 200:
@@ -87,17 +85,32 @@ def handle_login() -> None:
         st.session_state.applicant_id = data["applicant_id"]
         st.session_state.application_id = data["application_id"]
         st.session_state.current_phase = data.get("current_phase", "intake")
-        st.session_state.messages = []
         st.session_state.uploaded_documents = []
         st.session_state.login_attempts = 0
         st.session_state.login_error = None
-        logger.info(
-            "login_success",
-            applicant_id=data["applicant_id"],
-            application_id=data["application_id"],
-            phase=data.get("current_phase", "intake"),
-        )
-        st.switch_page("app_pages/chat.py")
+        st.session_state.login_success = True
+
+        state_snapshot = data.get("state_snapshot")
+        if state_snapshot and not data.get("is_new_applicant"):
+            st.session_state.state_snapshot = state_snapshot
+            if "messages" in state_snapshot:
+                st.session_state.messages = state_snapshot["messages"]
+            logger.info(
+                "login_resumed",
+                applicant_id=data["applicant_id"],
+                application_id=data["application_id"],
+                phase=data.get("current_phase", "intake"),
+                message_count=len(st.session_state.messages),
+            )
+        else:
+            st.session_state.state_snapshot = None
+            st.session_state.messages = []
+            logger.info(
+                "login_success",
+                applicant_id=data["applicant_id"],
+                application_id=data["application_id"],
+                phase=data.get("current_phase", "intake"),
+            )
     else:
         detail = "Login failed. Please check your Emirates ID."
         try:
@@ -113,12 +126,18 @@ def handle_login() -> None:
             )
             st.session_state.login_locked = True
             logger.warning("login_locked", attempt=attempts)
-        st.rerun()
 
 
 def render() -> None:
     """Render the landing page."""
     logger.debug("landing_page_render")
+
+    # Handle navigation after successful login (set by handle_login callback)
+    if st.session_state.get("login_success"):
+        st.session_state.login_success = False
+        st.switch_page("app_pages/chat.py")
+        return
+
     if st.session_state.get("authenticated"):
         st.switch_page("app_pages/chat.py")
         return

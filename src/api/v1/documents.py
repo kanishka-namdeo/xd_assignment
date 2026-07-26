@@ -10,6 +10,6 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 @router.get("/status")
 async def document_status():
-    logger.info("request_received", event="document_status_check")
-    logger.info("response_sent", event="document_status_ok")
+    logger.info("request_received", )
+    logger.info("response_sent", )
     return {"status": "ok"}

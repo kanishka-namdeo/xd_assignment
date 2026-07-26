@@ -36,7 +36,14 @@ def _render_sidebar() -> None:
     with st.sidebar:
         st.markdown("### Application")
         render_phase_tracker(st.session_state.get("current_phase", "intake"))
-        render_document_status(st.session_state.get("uploaded_documents"))
+
+        # Get support category from applicant info for dynamic document requirements
+        applicant_info = st.session_state.get("applicant_info", {})
+        support_category = applicant_info.get("support_category") if isinstance(applicant_info, dict) else None
+        render_document_status(
+            st.session_state.get("uploaded_documents"),
+            support_category=support_category,
+        )
 
         st.markdown("---")
         if st.button("Log Out", use_container_width=True):

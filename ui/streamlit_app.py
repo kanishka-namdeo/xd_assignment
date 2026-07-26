@@ -15,10 +15,10 @@ st.set_page_config(
 
 logger.info("streamlit_app_starting", page_title="Social Support Application")
 
-pages = {
-    "landing": st.Page(landing.render, title="Login", path="/"),
-    "chat": st.Page(chat.render, title="Application", path="/application"),
-}
+pages = [
+    st.Page(landing.render, title="Login"),
+    st.Page(chat.render, title="Application", url_path="/application"),
+]
 
 pg = st.navigation(pages, position="hidden")
 pg.run()

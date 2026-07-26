@@ -32,6 +32,10 @@ SQLAlchemy Alembic migrations for PostgreSQL schema evolution. Tracks changes to
 4. Test migration: `alembic upgrade head`
 5. Commit migration file
 
+### Existing Migrations
+- `20260725001_add_document_processing_schema.py` — Initial schema with 16 tables (applicants, applications, documents, extraction data, audit logs)
+- `20260726001_add_state_snapshot.py` — Adds state_snapshot JSONB column to applications table for LangGraph checkpointing
+
 ## Work Guidance
 
 ### Creating a Migration
