@@ -210,8 +210,8 @@ def validate_completeness(
 
     is_complete = len(missing_items) == 0
     if is_complete:
-        logger.info("completeness_passed", event="completeness_passed", required_count=len(required_documents))
+        logger.info("completeness_passed", required_count=len(required_documents))
     else:
-        logger.warning("completeness_failed", event="completeness_failed", missing_count=len(missing_items), missing_items=missing_items)
+        logger.warning("completeness_failed", missing_count=len(missing_items), missing_items=missing_items)
 
     return is_complete, missing_items

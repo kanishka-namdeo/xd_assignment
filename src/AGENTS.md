@@ -123,6 +123,9 @@ Synthetic data generation for testing and development. All generators produce sc
 ## Verification
 - Unit tests in `tests/unit/` mock all dependencies
 - Integration tests in `tests/integration/` use real DB, mocked LLM
+- E2E tests in `tests/e2e/` and `tests/system/` validate full application flows
+- Agent test suites cover orchestrator (51 tests), extraction (26), validation (29), eligibility, and decision (39) agents
+- Gate tests cover completeness, document integrity, eligibility rules, and retry logic
 - Type checking: Pyright/mypy (required)
 - Linting: Ruff (required)
 

@@ -336,7 +336,7 @@ def validate_document_integrity(
 
     is_valid = len(errors) == 0
     if is_valid:
-        logger.info("integrity_passed", event="integrity_passed", document_type=document_type)
+        logger.info("integrity_passed", document_type=document_type)
     else:
-        logger.warning("integrity_failed", event="integrity_failed", document_type=document_type, error_count=len(errors), errors=errors)
+        logger.warning("integrity_failed", document_type=document_type, error_count=len(errors), errors=errors)
     return is_valid, errors

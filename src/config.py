@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     STATEMENT_TIMEOUT: int = 30000  # milliseconds
 
     # LLM Provider
-    LLM_PROVIDER: str = "ollama"  # "ollama" or "streamlake"
+    LLM_PROVIDER: str = "streamlake"  # "ollama" or "streamlake"
     OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
     OLLAMA_API_KEY: str = "ollama"
     OLLAMA_MODEL: str = "qwen3.5:14b"

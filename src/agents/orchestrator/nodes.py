@@ -8,7 +8,14 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from langchain_core.messages import BaseMessage
 
+from src.agents.orchestrator.prompts import (
+    DOCUMENT_COLLECTION_SYSTEM_PROMPT,
+    ENABLEMENT_SYSTEM_PROMPT,
+    INTAKE_SYSTEM_PROMPT,
+    REVIEW_SYSTEM_PROMPT,
+)
 from src.agents.state import ApplicantState
+from src.config import settings
 
 if TYPE_CHECKING:
     from src.infrastructure.llm.client import LLMClient
@@ -82,7 +89,8 @@ async def _generate_llm_response(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_context},
         ]
-        result = await llm.chat_completion(messages, model="kat-coder-pro-v2.5")
+        model = settings.STREAMLAKE_MODEL if settings.LLM_PROVIDER == "streamlake" else settings.OLLAMA_MODEL
+        result = await llm.chat_completion(messages, model=model)
         content = result.get("content", "").strip()
         if content:
             return content
@@ -110,7 +118,97 @@ def _make_assistant_message(content: str) -> dict:
     return {"role": "assistant", "content": content}
 
 
-def intake_node(state: ApplicantState) -> ApplicantState:
+async def authentication_node(state: ApplicantState) -> ApplicantState:
+    """Phase 0: Authentication - validate Emirates ID.
+
+    Deterministic node that validates the Emirates ID identity number
+    using the Luhn checksum. Transitions to intake on success,
+    or escalates on failure.
+    """
+    start_ms = time.perf_counter()
+    logger.info(
+        "node_enter",
+        event="node_enter",
+        node="authentication",
+        current_phase=state.get("current_phase"),
+        applicant_id=state.get("applicant_id"),
+    )
+
+    last_message = _get_last_message_content(state)
+    user_text = last_message.strip()
+
+    identity_number = state.get("identity_number")
+
+    if not identity_number and user_text:
+        import re
+        match = re.search(r"(\d{15})", user_text)
+        if match:
+            identity_number = match.group(1)
+
+    if not identity_number:
+        response = (
+            "Welcome to the UAE Social Support Application system. "
+            "Please provide your Emirates ID number (15 digits) to begin your application."
+        )
+        duration_ms = (time.perf_counter() - start_ms) * 1000
+        logger.info(
+            "node_exit",
+            event="node_exit",
+            node="authentication",
+            duration_ms=round(duration_ms, 2),
+            next_phase="authentication",
+        )
+        return {
+            "messages": [_make_assistant_message(response)],
+            "current_phase": "authentication",
+        }
+
+    from src.utils.emirates_id import validate as emirates_id_validate
+
+    is_valid = emirates_id_validate(str(identity_number))
+
+    if is_valid:
+        response = (
+            f"Emirates ID verified successfully. "
+            f"Welcome to the UAE Social Support Application system. "
+            f"To get started, please provide your full name."
+        )
+        duration_ms = (time.perf_counter() - start_ms) * 1000
+        logger.info(
+            "node_exit",
+            event="node_exit",
+            node="authentication",
+            duration_ms=round(duration_ms, 2),
+            next_phase="intake",
+            identity_verified=True,
+        )
+        return {
+            "messages": [_make_assistant_message(response)],
+            "current_phase": "intake",
+            "identity_number": identity_number,
+        }
+    else:
+        response = (
+            "The Emirates ID number provided could not be verified. "
+            "Please check the number and try again. "
+            "The ID should be a 15-digit number."
+        )
+        duration_ms = (time.perf_counter() - start_ms) * 1000
+        logger.warning(
+            "node_exit",
+            event="node_exit",
+            node="authentication",
+            duration_ms=round(duration_ms, 2),
+            next_phase="authentication",
+            identity_verified=False,
+        )
+        return {
+            "messages": [_make_assistant_message(response)],
+            "current_phase": "authentication",
+        }
+
+
+async def intake_node(state: ApplicantState) -> ApplicantState:
     """Phase 1: Intake - collect basic applicant information.
 
     Parses user message for basic info, stores in state,
@@ -180,24 +278,13 @@ def intake_node(state: ApplicantState) -> ApplicantState:
         next_phase = "intake"
 
     # Try LLM-generated response with graceful fallback
-    import asyncio as _asyncio
-    system_prompt = (
-        "You are a helpful and professional intake assistant for the UAE Social Support Application system. "
-        "Your role is to collect basic information from applicants in a warm, clear manner. "
-        "Keep responses concise and guide the applicant to the next step."
-    )
+    system_prompt = INTAKE_SYSTEM_PROMPT
     user_context = (
         f"Applicant message: {user_text or '(no message)'}\n"
         f"Current info: {applicant_info}\n"
         f"Support category detected: {support_category or 'none yet'}"
     )
-    try:
-        loop = _asyncio.get_event_loop()
-        llm_response = loop.run_until_complete(
-            _generate_llm_response(system_prompt, user_context, response)
-        )
-    except Exception:
-        llm_response = response
+    llm_response = await _generate_llm_response(system_prompt, user_context, response)
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="intake", duration_ms=round(duration_ms, 2), next_phase=next_phase, support_category=support_category)
@@ -209,7 +296,7 @@ def intake_node(state: ApplicantState) -> ApplicantState:
     }
 
 
-def document_collection_node(state: ApplicantState) -> ApplicantState:
+async def document_collection_node(state: ApplicantState) -> ApplicantState:
     """Phase 2: Document Collection - track uploaded documents.
 
     Checks which documents are required based on support_category,
@@ -261,26 +348,14 @@ def document_collection_node(state: ApplicantState) -> ApplicantState:
         next_phase = "document_collection"
 
     # Try LLM-generated response with graceful fallback
-    system_prompt = (
-        "You are a helpful document collection assistant for the UAE Social Support Application system. "
-        "Your role is to request and track required supporting documents from applicants. "
-        "Be clear about which documents are needed and reassure applicants about the process. "
-        "Keep responses concise."
-    )
+    system_prompt = DOCUMENT_COLLECTION_SYSTEM_PROMPT
     user_context = (
         f"Support category: {support_category}\n"
         f"Required documents: {', '.join(required)}\n"
         f"Already uploaded: {len(uploaded_files) + len(uploaded_docs)} document(s)\n"
         f"User message: {last_message or '(no message)'}"
     )
-    import asyncio as _asyncio2
-    try:
-        loop2 = _asyncio2.get_event_loop()
-        llm_response = loop2.run_until_complete(
-            _generate_llm_response(system_prompt, user_context, response)
-        )
-    except Exception:
-        llm_response = response
+    llm_response = await _generate_llm_response(system_prompt, user_context, response)
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="document_collection", duration_ms=round(duration_ms, 2), next_phase=next_phase, uploaded_count=len(uploaded_files) + len(uploaded_docs), required_count=len(required))
@@ -291,11 +366,11 @@ def document_collection_node(state: ApplicantState) -> ApplicantState:
     }
 
 
-def processing_node(state: ApplicantState) -> ApplicantState:
-    """Phase 3: Processing - call extraction and validation services.
+async def processing_node(state: ApplicantState) -> ApplicantState:
+    """Phase 3: Processing - invoke extraction and validation agents.
 
-    Calls ExtractionService.extract_all_documents() and
-    ValidationService.validate_cross_document().
+    Invokes the extraction agent subgraph to extract data from documents,
+    then invokes the validation agent subgraph to validate cross-document consistency.
     Generates processing status message.
     Transitions to review.
     """
@@ -321,65 +396,89 @@ def processing_node(state: ApplicantState) -> ApplicantState:
     applicant_info = state.get("applicant_info", {})
     support_category = applicant_info.get("support_category", "")
 
-    # Try to use injected services if available
-    services = get_services()
-    extraction_service = services.get("extraction")
-    validation_service = services.get("validation")
-
+    # Invoke extraction agent subgraph
     extraction_results = []
     validation_results = {}
     discrepancies = []
 
-    if extraction_service and applicant_id:
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            extraction_results = loop.run_until_complete(
-                extraction_service.extract_all_documents(applicant_id)
-            )
-            logger.info("extraction_complete", event="extraction_complete", document_count=len(extraction_results))
-            if trace:
-                trace.span(
-                    name="document_extraction",
-                    input={"applicant_id": applicant_id},
-                    output={"documents_extracted": len(extraction_results)},
-                )
-        except Exception as e:
-            extraction_results = [{"status": "failed", "error": str(e)}]
-            logger.exception("extraction_failed", event="extraction_failed", error=str(e))
-            if trace:
-                trace.span(
-                    name="document_extraction",
-                    input={"applicant_id": applicant_id},
-                    output={"error": str(e)},
-                    level="ERROR",
-                )
+    try:
+        from src.agents.extraction.graph import get_extraction_subgraph
 
-    if validation_service and applicant_id:
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            validation_results = loop.run_until_complete(
-                validation_service.validate_cross_document(applicant_id, support_category)
+        extraction_graph = get_extraction_subgraph()
+        config = {
+            "configurable": {
+                "thread_id": f"{application_id}_extraction",
+            },
+        }
+
+        extraction_result = await extraction_graph.ainvoke(state, config=config)
+
+        extraction_results = extraction_result.get("extraction_results", [])
+        logger.info("extraction_agent_complete", event="extraction_agent_complete", document_count=len(extraction_results), gate_status=extraction_result.get("gate_status"))
+
+        if trace:
+            trace.span(
+                name="document_extraction",
+                input={"applicant_id": applicant_id},
+                output={"documents_extracted": len(extraction_results)},
             )
-            discrepancies = validation_results.get("discrepancies", [])
-            logger.info("validation_complete", event="validation_complete", discrepancy_count=len(discrepancies))
-            if trace:
-                trace.span(
-                    name="cross_document_validation",
-                    input={"applicant_id": applicant_id, "support_category": support_category},
-                    output={"discrepancies_found": len(discrepancies)},
-                )
-        except Exception as e:
-            validation_results = {"status": "failed", "error": str(e)}
-            logger.exception("validation_failed", event="validation_failed", error=str(e))
-            if trace:
-                trace.span(
-                    name="cross_document_validation",
-                    input={"applicant_id": applicant_id, "support_category": support_category},
-                    output={"error": str(e)},
-                    level="ERROR",
-                )
+
+        # Check if extraction passed gate
+        if extraction_result.get("gate_status") == "failed":
+            logger.warning("extraction_gate_failed", event="extraction_gate_failed", gate_errors=extraction_result.get("gate_errors"))
+            state_update = {
+                "extraction_results": extraction_results,
+                "validation_results": {},
+                "discrepancies": [],
+                "messages": [_make_assistant_message(
+                    "Document extraction encountered validation errors. "
+                    "Please review your documents and try again."
+                )],
+                "current_phase": "review",
+                "gate_status": "failed",
+                "gate_errors": extraction_result.get("gate_errors", []),
+            }
+            return state_update
+
+    except Exception as e:
+        extraction_results = [{"status": "failed", "error": str(e)}]
+        logger.exception("extraction_agent_failed", event="extraction_agent_failed", error=str(e))
+        if trace:
+            trace.span(
+                name="document_extraction",
+                input={"applicant_id": applicant_id},
+                output={"error": str(e)},
+                level="ERROR",
+            )
+
+    # Invoke validation agent subgraph
+    try:
+        from src.agents.validation.graph import run_validation_agent
+
+        validation_state = {**state, "extraction_results": extraction_results}
+        validation_result = await run_validation_agent(validation_state)
+
+        validation_results = validation_result.get("validation_results", {})
+        discrepancies = validation_result.get("discrepancies", [])
+        logger.info("validation_agent_complete", event="validation_agent_complete", discrepancy_count=len(discrepancies), gate_status=validation_result.get("gate_status"))
+
+        if trace:
+            trace.span(
+                name="cross_document_validation",
+                input={"applicant_id": applicant_id, "support_category": support_category},
+                output={"discrepancies_found": len(discrepancies)},
+            )
+
+    except Exception as e:
+        validation_results = {"status": "failed", "error": str(e)}
+        logger.exception("validation_agent_failed", event="validation_agent_failed", error=str(e))
+        if trace:
+            trace.span(
+                name="cross_document_validation",
+                input={"applicant_id": applicant_id, "support_category": support_category},
+                output={"error": str(e)},
+                level="ERROR",
+            )
 
     # Store results in state for downstream nodes
     state_update: dict[str, Any] = {
@@ -423,7 +522,7 @@ def processing_node(state: ApplicantState) -> ApplicantState:
     return state_update
 
 
-def review_node(state: ApplicantState) -> ApplicantState:
+async def review_node(state: ApplicantState) -> ApplicantState:
     """Phase 4: Review - check validation results and present findings.
 
     Checks validation results for discrepancies,
@@ -452,27 +551,14 @@ def review_node(state: ApplicantState) -> ApplicantState:
             "Proceeding to the decision phase."
         )
 
-    # Try LLM-generated response with graceful fallback
-    system_prompt = (
-        "You are a professional review officer for the UAE Social Support Application system. "
-        "Your role is to communicate cross-document validation results to applicants clearly and empathetically. "
-        "If discrepancies exist, explain them plainly. If everything is consistent, reassure the applicant. "
-        "Keep responses concise and professional."
-    )
     discrepancy_count = len(discrepancies)
+    system_prompt = REVIEW_SYSTEM_PROMPT
     user_context = (
         f"Validation result: {'discrepancies found' if discrepancies else 'all consistent'}\n"
         f"Number of discrepancies: {discrepancy_count}\n"
         f"Discrepancy details: {discrepancies[:2] if discrepancies else 'none'}"
     )
-    import asyncio as _asyncio3
-    try:
-        loop3 = _asyncio3.get_event_loop()
-        llm_response = loop3.run_until_complete(
-            _generate_llm_response(system_prompt, user_context, response)
-        )
-    except Exception:
-        llm_response = response
+    llm_response = await _generate_llm_response(system_prompt, user_context, response)
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="review", duration_ms=round(duration_ms, 2), discrepancy_count=len(discrepancies))
@@ -483,11 +569,11 @@ def review_node(state: ApplicantState) -> ApplicantState:
     }
 
 
-def decision_node(state: ApplicantState) -> ApplicantState:
-    """Phase 5: Decision - compute eligibility and make decision.
+async def decision_node(state: ApplicantState) -> ApplicantState:
+    """Phase 5: Decision - invoke eligibility and decision agents.
 
-    Calls EligibilityService.compute_eligibility() and
-    DecisionService.make_decision().
+    Invokes the eligibility agent subgraph to compute eligibility score,
+    then invokes the decision agent subgraph to make final recommendation.
     Generates decision message with explanation and decision value.
     Transitions to enablement.
     """
@@ -496,64 +582,105 @@ def decision_node(state: ApplicantState) -> ApplicantState:
     applicant_id = state.get("applicant_id")
     logger.info("node_enter", event="node_enter", node="decision", application_id=application_id, applicant_id=applicant_id)
 
-    services = get_services()
-    eligibility_service = services.get("eligibility")
-    decision_service = services.get("decision")
-
     decision = "manual_review"
-    decision_explanation = "Unable to compute eligibility - services not available."
+    decision_explanation = "Unable to compute eligibility - agent invocation failed."
     eligibility_score = 0.5
+    eligibility_factors = {}
 
-    if eligibility_service and application_id:
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            eligibility_result = loop.run_until_complete(
-                eligibility_service.compute_eligibility(application_id)
-            )
-            eligibility_score = eligibility_result.get("eligibility_score", 0.5)
-            logger.info("eligibility_computed", event="eligibility_computed", score=eligibility_score)
-        except Exception as e:
-            eligibility_score = 0.5
-            decision_explanation = f"Eligibility computation error: {e}"
-            logger.exception("eligibility_failed", event="eligibility_failed", error=str(e))
+    # Invoke eligibility agent subgraph
+    try:
+        from src.agents.eligibility.graph import get_eligibility_graph
 
-    if decision_service and application_id:
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            decision_result = loop.run_until_complete(
-                decision_service.make_decision(application_id)
-            )
-            decision = decision_result.get("decision", "manual_review")
-            decision_explanation = decision_result.get("explanation", decision_explanation)
-            logger.info("decision_made", event="decision_made", decision=decision)
-        except Exception as e:
+        eligibility_graph = get_eligibility_graph()
+        config = {
+            "configurable": {
+                "thread_id": f"{application_id}_eligibility",
+            },
+        }
+
+        eligibility_result = await eligibility_graph.ainvoke(state, config=config)
+
+        eligibility_score = eligibility_result.get("eligibility_score", 0.5)
+        eligibility_factors = eligibility_result.get("eligibility_factors", {})
+        logger.info("eligibility_agent_complete", event="eligibility_agent_complete", score=eligibility_score, gate_status=eligibility_result.get("gate_status"))
+
+        # Check if eligibility passed gate
+        if eligibility_result.get("gate_status") == "failed":
+            logger.warning("eligibility_gate_failed", event="eligibility_gate_failed", gate_errors=eligibility_result.get("gate_errors"))
+            decision = "soft_decline"
+            decision_explanation = "Application does not meet hard eligibility requirements."
+            return {
+                "messages": [_make_assistant_message(
+                    f"We have reached a decision on your application. "
+                    f"Decision: {decision.replace('_', ' ').title()}. "
+                    f"{decision_explanation}"
+                )],
+                "current_phase": "enablement",
+                "decision": decision,
+                "decision_explanation": decision_explanation,
+                "eligibility_score": eligibility_score,
+                "eligibility_factors": eligibility_factors,
+                "gate_status": "failed",
+                "gate_errors": eligibility_result.get("gate_errors", []),
+            }
+
+    except Exception as e:
+        logger.exception("eligibility_agent_failed", event="eligibility_agent_failed", error=str(e))
+        # Fall back to service-based eligibility
+        services = get_services()
+        eligibility_service = services.get("eligibility")
+        if eligibility_service and application_id:
+            try:
+                eligibility_result = await eligibility_service.compute_eligibility(application_id)
+                eligibility_score = eligibility_result.get("eligibility_score", 0.5)
+                eligibility_factors = eligibility_result.get("factors", {})
+                logger.info("eligibility_service_fallback", event="eligibility_service_fallback", score=eligibility_score)
+            except Exception as e2:
+                logger.exception("eligibility_service_fallback_failed", event="eligibility_service_fallback_failed", error=str(e2))
+
+    # Invoke decision agent subgraph
+    try:
+        from src.agents.decision.graph import decision_agent
+
+        decision_state = {
+            **state,
+            "eligibility_score": eligibility_score,
+            "eligibility_factors": eligibility_factors,
+        }
+        config = {
+            "configurable": {
+                "thread_id": f"{application_id}_decision",
+            },
+        }
+
+        decision_result = await decision_agent.ainvoke(decision_state, config=config)
+
+        decision = decision_result.get("decision", "manual_review")
+        decision_explanation = decision_result.get("decision_explanation", decision_explanation)
+        logger.info("decision_agent_complete", event="decision_agent_complete", decision=decision)
+
+    except Exception as e:
+        logger.exception("decision_agent_failed", event="decision_agent_failed", error=str(e))
+        # Fall back to service-based decision
+        services = get_services()
+        decision_service = services.get("decision")
+        if decision_service and application_id:
+            try:
+                decision_result = await decision_service.make_decision(application_id)
+                decision = decision_result.get("decision", "manual_review")
+                decision_explanation = decision_result.get("explanation", decision_explanation)
+                logger.info("decision_service_fallback", event="decision_service_fallback", decision=decision)
+            except Exception as e2:
+                logger.exception("decision_service_fallback_failed", event="decision_service_fallback_failed", error=str(e2))
+        elif eligibility_score >= 0.7:
+            decision = "approved"
+            decision_explanation = f"Application approved with eligibility score {eligibility_score:.0%}."
+        elif eligibility_score >= 0.5:
             decision = "manual_review"
-            decision_explanation = f"Decision error: {e}"
-            logger.exception("decision_failed", event="decision_failed", error=str(e))
-    elif eligibility_score >= 0.7:
-        decision = "approved"
-        decision_explanation = f"Application approved with eligibility score {eligibility_score:.0%}."
-    elif eligibility_score >= 0.5:
-        decision = "manual_review"
-        decision_explanation = f"Application requires manual review. Score: {eligibility_score:.0%}."
-    else:
-        decision = "soft_decline"
-        decision_explanation = f"Application declined with eligibility score {eligibility_score:.0%}."
-
-    # Generate explanation text if services available
-    if eligibility_service and application_id:
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            explanation_text = loop.run_until_complete(
-                eligibility_service.get_eligibility_explanation(application_id)
-            )
-            if explanation_text:
-                decision_explanation = explanation_text
-        except Exception:
-            pass
+            decision_explanation = f"Application requires manual review. Score: {eligibility_score:.0%}."
+        else:
+            decision = "soft_decline"
+            decision_explanation = f"Application declined with eligibility score {eligibility_score:.0%}."
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="decision", duration_ms=round(duration_ms, 2), decision=decision, eligibility_score=eligibility_score)
@@ -568,10 +695,11 @@ def decision_node(state: ApplicantState) -> ApplicantState:
         "decision": decision,
         "decision_explanation": decision_explanation,
         "eligibility_score": eligibility_score,
+        "eligibility_factors": eligibility_factors,
     }
 
 
-def enablement_node(state: ApplicantState) -> ApplicantState:
+async def enablement_node(state: ApplicantState) -> ApplicantState:
     """Phase 6: Enablement - generate enablement recommendations.
 
     Generates enablement recommendations based on profile.
@@ -628,27 +756,13 @@ def enablement_node(state: ApplicantState) -> ApplicantState:
         f"Next steps: {recommendation_text}"
     )
 
-    # Try LLM-generated response with graceful fallback
-    system_prompt = (
-        "You are a compassionate case worker delivering the final decision and next steps "
-        "for the UAE Social Support Application system. "
-        "Communicate the decision clearly and outline concrete next steps. "
-        "Be empathetic whether the outcome is approval, manual review, or decline. "
-        "Keep responses concise and actionable."
-    )
+    system_prompt = ENABLEMENT_SYSTEM_PROMPT
     user_context = (
         f"Decision: {decision}\n"
         f"Support category: {support_category}\n"
         f"Recommendations: {recommendation_text[:200]}"
     )
-    import asyncio as _asyncio4
-    try:
-        loop4 = _asyncio4.get_event_loop()
-        llm_response = loop4.run_until_complete(
-            _generate_llm_response(system_prompt, user_context, response)
-        )
-    except Exception:
-        llm_response = response
+    llm_response = await _generate_llm_response(system_prompt, user_context, response)
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", event="node_exit", node="enablement", duration_ms=round(duration_ms, 2), recommendation_count=len(recommendations), decision=decision)

@@ -207,12 +207,12 @@ def check_hard_eligibility_rules(
     for check_name, check_func in checks:
         try:
             failure = check_func(extracted_data)
-            logger.debug("eligibility_check", event="eligibility_check", check=check_name, passed=failure is None, failure_reason=failure)
+            logger.debug("eligibility_check", check=check_name, passed=failure is None, failure_reason=failure)
             if failure:
                 return False, failure
         except Exception as e:
-            logger.exception("eligibility_check_error", event="eligibility_check_error", check=check_name, error=str(e))
+            logger.exception("eligibility_check_error", check=check_name, error=str(e))
             return False, f"Error running {check_name}: {e}"
 
-    logger.info("eligibility_passed", event="eligibility_passed", checks_completed=len(checks))
+    logger.info("eligibility_passed", checks_completed=len(checks))
     return True, None

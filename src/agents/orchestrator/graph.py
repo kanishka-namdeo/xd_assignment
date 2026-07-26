@@ -1,10 +1,11 @@
 """Master StateGraph definition and compilation."""
 
 import structlog
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.orchestrator.nodes import (
+    authentication_node,
     decision_node,
     document_collection_node,
     enablement_node,
@@ -21,6 +22,7 @@ logger = structlog.get_logger(__name__)
 def build_orchestrator_graph() -> StateGraph:
     graph = StateGraph(ApplicantState)
 
+    graph.add_node("authentication", authentication_node)
     graph.add_node("intake", intake_node)
     graph.add_node("document_collection", document_collection_node)
     graph.add_node("processing", processing_node)
@@ -29,6 +31,7 @@ def build_orchestrator_graph() -> StateGraph:
     graph.add_node("enablement", enablement_node)
 
     graph.add_conditional_edges(START, route_by_phase, {
+        "authentication": "authentication",
         "intake": "intake",
         "document_collection": "document_collection",
         "processing": "processing",
@@ -37,6 +40,7 @@ def build_orchestrator_graph() -> StateGraph:
         "enablement": "enablement",
     })
 
+    graph.add_edge("authentication", "intake")
     graph.add_edge("intake", "document_collection")
     graph.add_edge("document_collection", "processing")
     graph.add_edge("processing", "review")
@@ -44,22 +48,14 @@ def build_orchestrator_graph() -> StateGraph:
     graph.add_edge("decision", "enablement")
     graph.add_edge("enablement", END)
 
-    checkpointer = MemorySaver()
+    checkpointer = SqliteSaver.from_conn_string("orchestrator.db")
     compiled = graph.compile(checkpointer=checkpointer)
 
     logger.info(
         "graph_compiled",
         event="graph_compiled",
-        nodes=["intake", "document_collection", "processing", "review", "decision", "enablement"],
+        nodes=["authentication", "intake", "document_collection", "processing", "review", "decision", "enablement"],
         checkpointer_type=type(checkpointer).__name__,
     )
-
-    if isinstance(checkpointer, MemorySaver):
-        logger.warning(
-            "checkpointer_warning",
-            event="checkpointer_warning",
-            message="MemorySaver is in-memory only and not suitable for production deployments",
-            checkpointer_type="MemorySaver",
-        )
 
     return compiled

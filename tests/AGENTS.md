@@ -16,6 +16,42 @@ Mirror `src/` structure in `tests/unit/`:
 - `tests/unit/domain/` - Domain logic tests
 - `tests/unit/infrastructure/` - Infrastructure tests
 
+### Agent Test Files
+The following agent test suites cover the core LangGraph agents:
+
+- `tests/unit/agents/test_orchestrator.py` — 51 tests covering phase routing, authentication, intake, document collection, processing, decision, and enablement flows
+- `tests/unit/agents/test_extraction.py` — 26 tests covering tool invocation, gate integration, output parsing, and multi-document extraction
+- `tests/unit/agents/test_validation.py` — 29 tests covering per-document validation, cross-document comparison, discrepancy classification, clarification generation, confidence scoring, reflexion loop, and gate 2 integration
+- `tests/unit/agents/test_eligibility.py` — Tests covering feature engineering, ML prediction, factor adjustment, and gate 3 integration
+- `tests/unit/agents/test_decision.py` — 39 tests covering decision logic, explanation generation, enablement packaging, formatting, routing, ReAct node behavior, and deterministic synthesis
+
+### Gate Test Files
+Deterministic validation gates are tested separately under `tests/unit/agents/gates/`:
+- `test_completeness.py` — Document completeness checks
+- `test_document_integrity.py` — Tamper/forgery detection gates
+- `test_eligibility_rules.py` — Hard eligibility rule gates
+- `test_retry_logic.py` — Retry and fallback behavior
+
+### Integration and E2E Test Files
+- `tests/integration/test_orchestrator_integration.py` — 4 integration tests covering full phase flow and resume-from-later-phase scenarios
+- `tests/integration/test_agent_workflows.py` — Agent workflow integration tests
+- `tests/integration/test_api.py` — API layer integration tests
+- `tests/integration/test_repositories.py` — Repository integration tests
+- `tests/e2e/test_full_application_flow.py` — End-to-end tests covering the complete applicant pipeline with synthetic data
+- `tests/e2e/test_application_flow.py` — Application flow E2E tests
+- `tests/system/test_eligibility_e2e.py` — Eligibility-specific system-level E2E tests
+
+### Test Fixtures
+Shared fixtures in `tests/conftest.py`:
+- `synthetic_profiles` — Collection of synthetic applicant profiles for testing
+- `approved_profile` — Profile expected to result in approval
+- `manual_review_profile` — Profile expected to result in manual review
+- `soft_decline_profile` — Profile expected to result in soft decline
+- `sample_extracted_data` — Pre-built extracted document data for replay tests
+- `sample_state` — Pre-populated LangGraph state for node-level tests
+- `streamlake_settings` — LangChain settings configured for StreamLake LLM provider
+- `mock_chat_openai` — Mocked ChatOpenAI instance for unit tests
+
 ### Test Types
 - **Unit tests** (`tests/unit/`): Mock all external dependencies (DB, LLM, vector DB). Fast execution. Test business logic in isolation.
 - **Integration tests** (`tests/integration/`): Use real PostgreSQL, Neo4j, Qdrant. Mock LLM calls. Test data access and agent workflows.

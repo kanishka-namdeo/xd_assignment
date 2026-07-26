@@ -21,3 +21,17 @@ class ApplicantState(dict):
     discrepancies: list[dict[str, Any]]
     extracted_data: dict[str, Any]
     validation_errors: list[str]
+    identity_number: str | None
+    support_category: str | None
+    extraction_confidence: dict[str, float]
+    validation_results: dict
+    eligibility_factors: dict | None
+    gate_status: str
+    gate_errors: list[str]
+    retry_count: int
+    escalation_reason: str | None
+    applicant_info: dict[str, Any]
+    extraction_results: list[dict[str, Any]]
+    _next_action: str | None
+    _clarification_questions: list[dict[str, Any]]
+    enablement_recommendations: list[str]
