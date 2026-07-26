@@ -182,7 +182,7 @@ async def chat(
 
     uploaded_documents = [
         UploadedDocument(
-            doc_type=doc.get("doc_type", "unknown"),
+            doc_type=doc.get("document_type", doc.get("doc_type", "unknown")),
             file_path=doc.get("file_path", ""),
             status=doc.get("status", "uploaded"),
         )

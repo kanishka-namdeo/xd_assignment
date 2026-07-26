@@ -46,16 +46,11 @@ class LangfuseClient:
     def enabled(self) -> bool:
         return self._enabled
 
-    def get_callback_handler(
-        self,
-        trace_name: str,
-        session_id: str,
-        user_id: str,
-        tags: list[str] | None = None,
-    ) -> Any:
+    def get_callback_handler(self) -> Any:
         """Return a LangfuseCallbackHandler for LangChain/LangGraph integration.
 
         Returns None if Langfuse is not enabled or unavailable.
+        Trace attributes should be set via propagate_attributes() context manager.
         """
         if not self._enabled or self._client is None:
             return None
@@ -63,12 +58,7 @@ class LangfuseClient:
         try:
             from langfuse.langchain import CallbackHandler
 
-            handler = CallbackHandler(
-                trace_name=trace_name,
-                session_id=session_id,
-                user_id=user_id,
-                tags=tags or [],
-            )
+            handler = CallbackHandler()
             return handler
         except Exception:
             logger.exception("langfuse.callback_handler_failed")

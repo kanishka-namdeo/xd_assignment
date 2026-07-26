@@ -27,6 +27,14 @@ def classify_document(file_path: str) -> str:
     name_lower = path.stem.lower()
 
     if ext in {".png", ".jpg", ".jpeg"}:
+        if "application" in name_lower or "form" in name_lower:
+            return "application_form"
+        if "bank" in name_lower or "statement" in name_lower:
+            return "bank_statement"
+        if "credit" in name_lower or "aecb" in name_lower or "report" in name_lower:
+            return "credit_report"
+        if "resume" in name_lower or "cv" in name_lower:
+            return "resume"
         return "emirates_id"
     if ext == ".xlsx":
         return "assets_liabilities"

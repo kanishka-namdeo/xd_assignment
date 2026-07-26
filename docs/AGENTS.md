@@ -32,6 +32,13 @@ Design specs produced by the brainstorming workflow. Each spec is a durable arti
 | `2026-07-25-agent-specification-design.md` | Agent architecture spec: 5 agents (orchestrator, extraction, validation, eligibility, decision), ReAct/Reflexion reasoning, deterministic gates, LangGraph state model |
 | `2026-07-25-langgraph-implementation-patterns-design.md` | LangGraph v1 implementation patterns: subgraph decomposition, state isolation, interrupt() wiring, Reflexion topology, create_agent migration, middleware strategy |
 
+### Solution Summary
+Living design artifact maintained by agents throughout the project lifecycle.
+
+| File | Topic |
+|------|-------|
+| `solution-summary.md` | High-level architecture diagram, tool choice justification, modular workflow breakdown, future improvements and integration considerations. Capped at 10 pages. Updated on every architecture- or integration-affecting change. |
+
 ### Setup Guides
 Operational guides for infrastructure setup and configuration.
 

@@ -15,8 +15,8 @@ EMIRATES_ID_PATTERN = re.compile(r"^\d{3}-?\d{4}-?\d{7}-?\d$")
 
 
 def _luhn_check(digits: str) -> bool:
-    """Validate Luhn checksum for 14-digit Emirates ID number."""
-    if len(digits) != 14 or not digits.isdigit():
+    """Validate Luhn checksum for 14 or 15-digit Emirates ID number."""
+    if len(digits) not in (14, 15) or not digits.isdigit():
         return False
     total = 0
     for i, ch in enumerate(reversed(digits)):
@@ -30,11 +30,20 @@ def _luhn_check(digits: str) -> bool:
 
 
 def _normalize_emirates_id(value: str) -> str | None:
-    """Strip formatting and return 14-digit string, or None if malformed."""
+    """Strip formatting and return 14 or 15-digit string, or None if malformed."""
     cleaned = value.replace("-", "").replace(" ", "")
-    if len(cleaned) == 14 and cleaned.isdigit():
+    if len(cleaned) in (14, 15) and cleaned.isdigit():
         return cleaned
     return None
+
+
+def _format_emirates_id(digits: str) -> str:
+    """Format a 14 or 15-digit string as 784-YYYY-NNNNNNN-C or 784-YYYY-NNNNNNNN-C."""
+    if len(digits) == 14:
+        return f"{digits[:3]}-{digits[3:7]}-{digits[7:13]}-{digits[13]}"
+    elif len(digits) == 15:
+        return f"{digits[:3]}-{digits[3:7]}-{digits[7:14]}-{digits[14]}"
+    return digits
 
 
 def validate_emirates_id(value: str) -> str | None:
@@ -59,6 +68,7 @@ def handle_login() -> None:
         return
 
     digits = _normalize_emirates_id(raw)
+    formatted_id = _format_emirates_id(digits)
     attempts = st.session_state.get("login_attempts", 0) + 1
     st.session_state.login_attempts = attempts
 
@@ -67,7 +77,7 @@ def handle_login() -> None:
     try:
         resp = requests.post(
             f"{API_BASE}/api/v1/auth/login",
-            json={"emirates_id": digits},
+            json={"emirates_id": formatted_id},
             timeout=10,
         )
     except requests.ConnectionError:
@@ -135,11 +145,11 @@ def render() -> None:
     # Handle navigation after successful login (set by handle_login callback)
     if st.session_state.get("login_success"):
         st.session_state.login_success = False
-        st.switch_page("app_pages/chat.py")
+        st.switch_page(st.session_state.pages["application"])
         return
 
     if st.session_state.get("authenticated"):
-        st.switch_page("app_pages/chat.py")
+        st.switch_page(st.session_state.pages["application"])
         return
 
     st.set_page_config(page_title="Social Support Application", layout="centered")

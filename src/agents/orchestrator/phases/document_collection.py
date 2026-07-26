@@ -46,10 +46,12 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
         if fp in existing_file_paths:
             continue
         doc_type = classify_document(fp)
+        doc_id = str(uuid.uuid4())
         new_doc_entries.append({
-            "document_id": str(uuid.uuid4()),
+            "document_id": doc_id,
             "document_type": doc_type,
             "file_path": fp,
+            "status": "uploaded",
         })
     uploaded_documents = existing_docs + new_doc_entries
 
@@ -88,32 +90,48 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
             "uploaded_documents": uploaded_documents,
         }
 
-    # Missing documents - use interrupt() to pause and ask the user
+    # Missing documents - check if we're resuming from an interrupt
     missing_display = ", ".join(t.replace("_", " ").title() for t in missing_types)
+    
+    # If we have new documents that were just classified, this is a resume after interrupt
+    # Return the state update with the classified documents
+    if new_doc_entries:
+        response = (
+            f"We've received your documents. "
+            f"We still need the following required document(s): {missing_display}. "
+            f"Please upload them by attaching the files to your message."
+        )
+        duration_ms = (time.perf_counter() - start_ms) * 1000
+        logger.info(
+            "node_exit",
+            node="document_collection",
+            duration_ms=round(duration_ms, 2),
+            next_phase="document_collection",
+            uploaded_count=len(uploaded_documents),
+            required_count=len(required),
+            missing_count=len(missing_types),
+        )
+        return {
+            "messages": [_make_assistant_message(response)],
+            "current_phase": "document_collection",
+            "uploaded_documents": uploaded_documents,
+        }
+    
+    # No new documents - this is the first time or user didn't upload anything
+    # Call interrupt to ask for documents
     response = (
         f"Thank you for uploading your documents. "
         f"We still need the following required document(s): {missing_display}. "
         f"Please upload them by attaching the files to your message."
     )
-
-    # interrupt() pauses the graph and returns user response when resumed
-    user_response = interrupt({
+    
+    interrupt({
         "question": f"We still need the following required document(s): {missing_display}. Please upload them by attaching the files to your message.",
         "missing_documents": missing_types,
         "phase": "document_collection",
     })
-
-    duration_ms = (time.perf_counter() - start_ms) * 1000
-    logger.info(
-        "node_exit",
-        node="document_collection",
-        duration_ms=round(duration_ms, 2),
-        next_phase="document_collection",
-        uploaded_count=len(uploaded_documents),
-        required_count=len(required),
-        missing_count=len(missing_types),
-    )
-
+    
+    # This return is a fallback (interrupt should prevent reaching here)
     return {
         "messages": [_make_assistant_message(response)],
         "current_phase": "document_collection",

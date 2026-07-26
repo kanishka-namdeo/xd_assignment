@@ -87,6 +87,34 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child [AGENTS.md](http://AGENTS.md)
 
+### Solution Summary Document
+
+Agents MUST create and maintain `docs/solution-summary.md` as a durable artifact of the project. Update it whenever a change affects architecture, tool choices, component boundaries, integration points, or the overall solution design.
+
+The document is capped at 10 pages and must contain:
+
+- **High-level architecture diagram** — data flow and component interactions across the full solution
+- **Tool choice justification** — for each major technology, address suitability, scalability, maintainability, performance, and security
+- **Modular workflow breakdown** — the AI solution decomposed into its constituent components with clear responsibilities and interfaces
+- **Future improvements and integration** — suggestions for evolution, API design considerations, and data pipeline integration with existing systems
+
+Treat this document as a living deliverable. It should be accurate enough that a new engineer can understand the full solution from it without reading the code.
+
+### README Document
+
+Agents MUST create and maintain `README.md` at the repository root as the primary onboarding artifact. Update it whenever a change affects setup steps, dependencies, environment variables, run commands, service configuration, or the project structure.
+
+The README must contain:
+
+- **Prerequisites** — required software, versions, and install instructions
+- **Quick Start** — numbered, copy-pasteable steps to run the application end-to-end (environment setup, dependency install, infrastructure startup, migrations, backend, frontend)
+- **Environment variables** — every required and optional variable documented with purpose and default
+- **Test instructions** — how to run unit, integration, and E2E test suites
+- **Project structure** — brief table mapping top-level directories to their purpose
+- **Troubleshooting** — common issues and their resolutions
+
+Keep instructions accurate and executable. A new engineer should be able to clone the repository and run the application following the README alone.
+
 ### Pre-Planning Requirements
 
 Before writing any implementation plan, agents MUST complete two steps:
@@ -133,6 +161,7 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 - **Logging Practices**: Structured logging with `structlog`, PII redaction, timing. Use `structlog.get_logger(__name__)`, log events in snake_case, include `duration_ms` for timed operations. See `.cursor/rules/logging-practices.mdc` for full requirements.
 - **Proactive Web Search Guidelines**: Research-based web search guidelines for library docs, best practices, and version-specific APIs. See `.cursor/rules/web-search-guidelines.mdc` for when to search.
 - **PostgreSQL Patterns**: Async connection management with asyncpg/psycopg, query optimization, transaction patterns. See `.cursor/rules/postgres.mdc` for conventions.
+- **Process Management Safety**: Targeted process termination - never kill all processes of a type. Use port-based or PID-based killing. See `.cursor/rules/process-management.mdc` for safe patterns.
 
 ### Cursor Terminology Reference
 
@@ -182,7 +211,7 @@ Development and operational scripts for data generation and maintenance tasks. C
 
 ### `docs/` - Documentation
 
-Design specifications, architecture decisions, and durable project documentation. Contains 6 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns) and Langfuse v4 setup guide.
+Design specifications, architecture decisions, and durable project documentation. Contains 6 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns), Langfuse v4 setup guide, and `solution-summary.md` — a living 10-page solution summary maintained by agents throughout the project.
 
 ### `reference_docs/` - Reference Documentation
 

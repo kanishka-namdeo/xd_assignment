@@ -14,7 +14,7 @@ from src.domain.parsers import parse_by_document_type
 from src.domain.parsers.llm_extraction import parse_with_llm
 from src.domain.parsers.text_extract import extract_text_from_pdf_result, extract_text_from_xlsx
 from src.domain.scoring.confidence import (
-    ExtractionScore,
+    ConfidenceResult as ExtractionScore,
     compute_confidence as _domain_compute_confidence,
 )
 from src.infrastructure.db.repositories.extraction_repo import (

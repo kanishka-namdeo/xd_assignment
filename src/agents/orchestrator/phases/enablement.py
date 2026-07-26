@@ -29,9 +29,14 @@ async def enablement_node(state: ApplicantState) -> ApplicantState:
     extracted_data = state.get("extracted_data", {})
 
     # Build applicant context from state for profile-matched recommendations
+    family_size_raw = applicant_info.get("family_size", 1)
+    try:
+        family_size = int(family_size_raw)
+    except (ValueError, TypeError):
+        family_size = 1
     applicant_context = {
         "employment_status": applicant_info.get("employment_status", "unknown"),
-        "has_dependents": applicant_info.get("family_size", 1) > 1,
+        "has_dependents": family_size > 1,
         "credit_score": extracted_data.get("credit_report", {}).get("credit_score", 0),
         "skills": extracted_data.get("resume", {}).get("skills", []),
     }

@@ -19,7 +19,7 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
 
     On first invocation, runs the graph from the input state.
     On subsequent invocations with the same thread_id, resumes from checkpoint.
-    If the graph pauses at an interrupt(), returns the interrupt data.
+    If the graph paused at an interrupt(), returns the interrupt data.
     """
     start_ms = time.perf_counter()
     thread_id = input_data.get("application_id", "default")
@@ -36,12 +36,7 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
 
     callbacks = []
     if langfuse_client and langfuse_client.enabled:
-        handler = langfuse_client.get_callback_handler(
-            trace_name="orchestrator_graph",
-            session_id=thread_id,
-            user_id=applicant_id or "anonymous",
-            tags=["langgraph", "orchestrator"],
-        )
+        handler = langfuse_client.get_callback_handler()
         if handler:
             callbacks.append(handler)
 
@@ -50,26 +45,39 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
         llm_client = LLMClient()
         inject_llm_client(llm_client)
 
-        graph = build_orchestrator_graph()
+        graph = await build_orchestrator_graph()
         config: dict[str, Any] = {
             "configurable": {
                 "thread_id": thread_id,
             },
             "callbacks": callbacks if callbacks else None,
+            "metadata": {
+                "langfuse_session_id": thread_id,
+                "langfuse_user_id": applicant_id or "anonymous",
+            },
         }
 
-        # Check if this is a resume invocation (user responded to an interrupt)
-        # If input_data contains a "resume" key, use Command(resume=...)
-        resume_payload = input_data.get("resume")
-        if resume_payload is not None:
-            # Resume from checkpoint with the user's response
-            result = await graph.ainvoke(
-                Command(resume=resume_payload),
-                config=config,
-            )
-        else:
-            # Fresh invocation
-            result = await graph.ainvoke(input_data, config=config)
+        # Use propagate_attributes for Langfuse trace attributes
+        from langfuse import propagate_attributes
+
+        with propagate_attributes(
+            trace_name="orchestrator_graph",
+            session_id=thread_id,
+            user_id=applicant_id or "anonymous",
+            tags=["langgraph", "orchestrator"],
+        ):
+            # Check if this is a resume invocation (user responded to an interrupt)
+            # If input_data contains a "resume" key, use Command(resume=...)
+            resume_payload = input_data.get("resume")
+            if resume_payload is not None:
+                # Resume from checkpoint with the user's response
+                result = await graph.ainvoke(
+                    Command(resume=resume_payload),
+                    config=config,
+                )
+            else:
+                # Fresh invocation
+                result = await graph.ainvoke(input_data, config=config)
 
         # Persist extraction/validation results to PostgreSQL, Qdrant, Neo4j
         # This is the service-layer persistence step — nodes only produce state updates.

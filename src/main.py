@@ -1,5 +1,12 @@
 """FastAPI application factory."""
 
+import sys
+
+# Windows asyncio event loop compatibility for psycopg async
+if sys.platform == "win32":
+    import asyncio
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 

@@ -19,7 +19,7 @@ ALLOWED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 def _ensure_authenticated() -> bool:
     """Redirect to landing if not authenticated. Returns True if authenticated."""
     if not st.session_state.get("authenticated"):
-        st.switch_page("app_pages/landing.py")
+        st.switch_page("/")
         return False
     return True
 
@@ -49,7 +49,7 @@ def _render_sidebar() -> None:
         if st.button("Log Out", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            st.switch_page("app_pages/landing.py")
+            st.switch_page("/")
 
 
 def render() -> None:

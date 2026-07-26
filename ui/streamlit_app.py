@@ -1,5 +1,13 @@
 """Streamlit entrypoint with st.navigation."""
 
+import sys
+from pathlib import Path
+
+# Ensure project root is on sys.path so `ui` is importable
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import structlog
 import streamlit as st
 
@@ -15,10 +23,14 @@ st.set_page_config(
 
 logger.info("streamlit_app_starting", page_title="Social Support Application")
 
-pages = [
-    st.Page(landing.render, title="Login"),
-    st.Page(chat.render, title="Application", url_path="/application"),
-]
+login_page = st.Page(landing.render, title="Login")
+app_page = st.Page(chat.render, title="Application", url_path="/application")
+
+pages = [login_page, app_page]
+
+# Store page references in session state for navigation
+if "pages" not in st.session_state:
+    st.session_state.pages = {"login": login_page, "application": app_page}
 
 pg = st.navigation(pages, position="hidden")
 pg.run()
