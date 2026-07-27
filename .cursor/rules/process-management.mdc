@@ -232,9 +232,18 @@ docker system prune -a --volumes
 $pid = (Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue).OwningProcess
 if ($pid) { Stop-Process -Id $pid -Force }
 
-# Then restart
-.\.venv\Scripts\python.exe -m uvicorn src.main:app --reload --port 8000
+# Then restart with stderr logging (critical for debugging)
+Start-Process -FilePath ".\.venv\Scripts\python.exe" `
+  -ArgumentList "-m", "uvicorn", "src.main:app", "--reload", "--port", "8000" `
+  -RedirectStandardError "backend_stderr.log" `
+  -RedirectStandardOutput "backend_stdout.log" `
+  -WindowStyle Hidden
+
+# Verify it's running
+Test-NetConnection -ComputerName localhost -Port 8000
 ```
+
+**Important:** Always redirect stderr when starting the backend. Silent crashes are impossible to debug without logs. Check `backend_stderr.log` for stack traces, validation errors, and LLM API failures.
 
 ### Streamlit Frontend (Port 8501)
 

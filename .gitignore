@@ -138,9 +138,10 @@ allure-report/
 # Scratch / Ad-hoc scripts
 # ====================
 /check_*.py
-/test_chat*.py
-/test_flow*.py
-/test_graph.py
+/test_*.py
+/processing_*.json
+/debug_*.py
+/scratch_*.py
 run_server.py
 
 # ====================

@@ -39,9 +39,11 @@
 | ID | Severity | Step | Symptom | Root Cause | Fix | Commit |
 |----|----------|------|---------|------------|-----|--------|
 | BUG-001 | critical | Edge: Vague message | Agent says "Thank you for uploading your documents" when user sent "I need help" and no documents were uploaded | agent-response: Document collection phase prompt doesn't distinguish between file upload events and text-only messages | Fixed in first round | 317173f |
-| BUG-002 | major | Decision phase | Decision card shows raw JSON in explanation field | decision_service.py format_decision_card() returns raw JSON string instead of formatted explanation | Pending | |
-| BUG-003 | major | Enablement phase | Pydantic validation fails: recommendations field expects strings but gets dicts | InterruptData schema defines recommendations as list[str] but enablement_node creates list[dict] with title/description | Pending | |
-| BUG-004 | critical | Enablement phase | Returns "An unexpected error occurred" when user sends vague message | chat_service.py exception handler catches Pydantic ValidationError but returns generic error message | Pending | |
+| BUG-002 | major | Decision phase | Decision card shows raw JSON in explanation field | decision_service.py format_decision_card() returns raw JSON string instead of formatted explanation | Fixed: extract explanation from JSON block | 4654eed |
+| BUG-003 | major | Enablement phase | Pydantic validation fails: recommendations field expects strings but gets dicts | InterruptData schema defines recommendations as list[str] but enablement_node creates list[dict] with title/description | Fixed: updated InterruptData.recommendations to accept list[dict] | 4654eed |
+| BUG-004 | critical | Enablement phase | Returns "An unexpected error occurred" when user sends vague message | chat_service.py exception handler catches Pydantic ValidationError but returns generic error message | Fixed: added specific ValidationError handling | 4654eed |
+| BUG-005 | major | Chat response | Document list shows duplicates (336 documents instead of 7) | chat_service.py builds uploaded_documents list without deduplication | Fixed: deduplicate by file_path | 8933f70 |
+| BUG-006 | major | Enablement phase | Type comparison error when family_size is string | enablement.py compares string family_size with int 1 | Fixed: convert family_size to int | e01dbe3 |
 
 ## Fixes Applied
 

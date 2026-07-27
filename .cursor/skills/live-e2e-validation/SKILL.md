@@ -54,14 +54,18 @@ docker compose ps
 # xd_postgres, xd_neo4j, xd_qdrant, xd_langfuse_web, xd_langfuse_worker,
 # xd_langfuse_postgres, xd_langfuse_clickhouse, xd_langfuse_redis, xd_langfuse_minio
 
-curl http://localhost:11434
+# PowerShell: Use Invoke-RestMethod for simple GET requests
+Invoke-RestMethod -Uri http://localhost:11434
 # Expect: 200 or Ollama welcome message
 
 ollama list
 # Expect: nomic-embed-text:v1.5 present (used for embeddings only; reasoning uses StreamLake kat-coder-pro-v2.5)
 
-curl http://localhost:4000
-# Expect: Langfuse UI loads (200)
+# PowerShell: Use Invoke-WebRequest for status checks
+(Invoke-WebRequest -Uri http://localhost:4000 -UseBasicParsing).StatusCode
+# Expect: 200
+
+# Note: For multipart uploads and POST requests, use curl.exe explicitly (not PowerShell's curl alias)
 ```
 
 ### 1.2 Application Health
@@ -73,18 +77,22 @@ if ($pid8000) { Stop-Process -Id $pid8000 -Force }
 $pid8501 = (Get-NetTCPConnection -LocalPort 8501 -ErrorAction SilentlyContinue).OwningProcess
 if ($pid8501) { Stop-Process -Id $pid8501 -Force }
 
-# Start backend (run in background):
-Start-Process -FilePath ".\.venv\Scripts\python.exe" -ArgumentList "-m", "uvicorn", "src.main:app", "--reload", "--port", "8000" -PassThru
+# Start backend with stderr logging (critical for debugging):
+Start-Process -FilePath ".\.venv\Scripts\python.exe" `
+  -ArgumentList "-m", "uvicorn", "src.main:app", "--reload", "--port", "8000" `
+  -RedirectStandardError "backend_stderr.log" `
+  -RedirectStandardOutput "backend_stdout.log" `
+  -WindowStyle Hidden
 
 # Start frontend (run in background):
 Start-Process -FilePath ".\.venv\Scripts\streamlit.exe" -ArgumentList "run", "ui/streamlit_app.py", "--server.port", "8501" -PassThru
 
 # Wait ~10s for apps to start, then verify structural health (DB + graph compilation):
-curl http://localhost:8000/api/v1/health/langgraph
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/health/langgraph
 # Expect: {"status": "healthy", "components": {"postgres": "ok", "graphs": {...}}}
 
 # Then verify LLM connectivity:
-curl http://localhost:8000/api/v1/health/llm
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/health/llm
 # Expect: {"status": "healthy", "provider": "streamlake", "model": "kat-coder-pro-v2.5", "latency_ms": ...}
 # Note: default LLM_PROVIDER is streamlake (kat-coder-pro-v2.5); Ollama is used for embeddings only (nomic-embed-text:v1.5)
 ```
@@ -570,3 +578,12 @@ Before ending the session:
 | Graph compilation fails | Missing dependency or circular import | `GET /health/langgraph` to identify which graph fails; check imports in agent `graph.py` |
 | Streaming endpoint hangs | SSE not configured | Verify `chat/stream` endpoint accepts `text/event-stream` response; check `run_streaming()` in `agent_runner.py` |
 | `validation_confidence` column missing | Migration not applied | Run `alembic upgrade head`; verify migration `20260727001_add_validation_confidence` applied |
+| PowerShell `curl` fails with "positional parameter" | PowerShell aliases `curl` to `Invoke-WebRequest` | Use `curl.exe` explicitly for multipart uploads, or `Invoke-RestMethod`/`Invoke-WebRequest` for JSON |
+| Backend crashes silently during processing | No stderr logging configured | Start backend with `-RedirectStandardError "backend_stderr.log"` to capture errors |
+| Browser subagent can't upload files | IDE browser blocks `DOM.setFileInputFiles` | Use API-based upload: `curl.exe -X POST /api/v1/applications/{id}/documents -F "file=@path"` |
+| Chat endpoint returns 422 "Field required" | Sent JSON body to form-data endpoint | Use `data=` (form-encoded) not `json=` for `/chat` endpoint; it expects `Form(...)` parameters |
+| Code changes not picked up after edit | uvicorn `--reload` missed file change | Manually kill backend process and restart; `--reload` is unreliable for some file types |
+| Decision card shows raw JSON | LLM wrapped JSON in markdown fences | `format_decision_card()` must extract from ` ```json ... ``` ` blocks before parsing |
+| Document list shows duplicates | No deduplication in response builder | Deduplicate `uploaded_documents` by `file_path` when building response |
+| Type comparison error in enablement | `family_size` stored as string, compared with int | Convert `family_size` to `int()` with try/except before comparisons |
+| Scratch files committed to repo | `git add -A` caught test scripts | Delete temporary test files (`test_*.py`) before committing, or add to `.gitignore` |
