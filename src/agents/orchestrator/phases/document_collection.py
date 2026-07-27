@@ -12,6 +12,7 @@ from langgraph.types import interrupt
 
 from src.agents.orchestrator.di import _make_assistant_message
 from src.agents.state import ApplicantState
+from src.domain.constants.document_types import DEFAULT_REQUIRED_DOCUMENTS, REQUIRED_DOCUMENTS
 from src.domain.document_classifier import classify_document
 from src.infrastructure.db.models.document import Document
 from src.infrastructure.db.repositories.document_repo import DocumentRepository
@@ -19,14 +20,6 @@ from src.infrastructure.db.session import get_session_factory
 from src.services.document_service import get_file_format
 
 logger = structlog.get_logger(__name__)
-
-REQUIRED_DOCUMENTS: dict[str, list[str]] = {
-    "divorced": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-    "abandoned": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-    "unknown_parentage": ["emirates_id", "bank_statement", "application_form"],
-    "health_disability": ["emirates_id", "bank_statement", "credit_report", "application_form", "resume"],
-}
-DEFAULT_REQUIRED: list[str] = ["emirates_id", "bank_statement", "credit_report", "application_form"]
 
 # Document persistence is injected before graph compilation.
 _session_factory = None
@@ -166,7 +159,7 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
                     )
 
     # Determine required vs. uploaded
-    required = REQUIRED_DOCUMENTS.get(support_category, DEFAULT_REQUIRED)
+    required = REQUIRED_DOCUMENTS.get(support_category, DEFAULT_REQUIRED_DOCUMENTS)
     uploaded_types = {d["document_type"] for d in uploaded_documents}
     missing_types = [doc_type for doc_type in required if doc_type not in uploaded_types]
 
@@ -190,6 +183,7 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
             "messages": [_make_assistant_message(response)],
             "current_phase": "processing",
             "uploaded_documents": uploaded_documents,
+            "new_documents_uploaded": True,
         }
 
     # Missing documents - check if we're resuming from an interrupt
@@ -213,10 +207,12 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
             required_count=len(required),
             missing_count=len(missing_types),
         )
+        check_state_size(state, node_name="document_collection", application_id=state.get("applicant_id"))
         return {
             "messages": [_make_assistant_message(response)],
             "current_phase": "document_collection",
             "uploaded_documents": uploaded_documents,
+            "new_documents_uploaded": True,
         }
     
     # No new documents - this is the first time or user didn't upload anything
