@@ -185,13 +185,13 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 ### `src/` - Application Source Code
 
-Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models, stubs) and `utils/` (shared utilities).
+Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models, stubs) and `utils/` (shared utilities including error classifier, retry logic, circuit breaker, state size monitoring).
 
-Services layer includes `AuthService` (login/session management), `ChatService` (orchestrator invocation, state persistence, interrupt handling), `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, and `ExtractionService`. Domain constants are centralized in `domain/constants/` (document_types, validation_rules, eligibility_rules).
+Services layer includes `AuthService` (login/session management), `ChatService` (orchestrator invocation, state persistence, interrupt handling), `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, and `ExtractionService`. Domain constants are centralized in `domain/constants/` (document_types, validation_rules, eligibility_rules). Infrastructure includes shared checkpointer factory with TTL cleanup, health check endpoint at `/api/v1/health/langgraph`, and streaming support via `run_streaming()`.
 
 ### `ui/` - Streamlit Frontend
 
-Chat-based user interface for applicant interaction. Uses `st.navigation` with `app_pages/` directory (not `pages/` to avoid legacy conflicts). Implements 7-phase applicant flow: authentication (Phase 0), intake, document collection, processing, review, decision, enablement (Phases 1-6). Components: decision cards, document status, phase tracker, enablement section, chat input with file upload.
+Chat-based user interface for applicant interaction. Uses `st.navigation` with `app_pages/` directory (not `pages/` to avoid legacy conflicts). Implements 7-phase applicant flow: authentication (Phase 0), intake, document collection, processing, review, decision, enablement (Phases 1-6). Components: decision cards, document status, phase tracker, enablement section, chat input with file upload, per-phase guidance panel, accessibility controls (high contrast, text size), Help panel with FAQs/glossary/contact/summary.
 
 ### `tests/` - Test Suite
 

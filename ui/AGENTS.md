@@ -9,27 +9,40 @@ Chat-based user interface for applicant interaction with the Social Support Appl
 
 ## Local Contracts
 
-### Navigation Pattern
-Use `st.navigation` with `st.Page` API (2025-2026 standard). Do NOT use `pages/` directory (legacy auto-discovery). Use `app_pages/` instead.
+### Streamlit Conventions
+Streamlit patterns (navigation, caching, performance) are defined in `.cursor/rules/streamlit.mdc`. Key conventions:
+- Use `st.navigation` with `st.Page` API — not legacy `pages/` directory
+- Use `app_pages/` directory for page modules
+- Use `@st.fragment` for partial reruns
+- Use `@st.cache_data` with `ttl` for serializable values
+- Use `@st.cache_resource` for global objects
 
 ### File Organization
-- `streamlit_app.py`: Entrypoint with `st.navigation` setup
+- `streamlit_app.py`: Entrypoint with `st.navigation` setup and global CSS injection
 - `app_pages/`: Page definitions (landing.py, chat.py)
-- `components/`: Reusable UI elements (decision cards, discrepancy cards, document status, phase tracker, chat input)
-- `fragments/`: `@st.fragment` wrapped sections for partial reruns
+- `components/`: Reusable UI elements (decision cards, discrepancy cards, document status, phase tracker, chat input, phase guidance, accessibility controls, help panel, enablement section)
+- `fragments/`: `@st.fragment` wrapped sections for partial reruns (chat_area)
 - `styles/`: Global CSS stylesheets
-
-### Performance Rules
-- Use `@st.fragment` for chat area to prevent full-page reruns
-- Use `@st.cache_data` with `ttl` for API responses
-- Use `@st.cache_resource` for global objects (DB connections, ML models)
-- Never store large DataFrames in `st.session_state`
 
 ### Chat Interface
 - Use `st.chat_message` and `st.chat_input` for conversation
 - Enable file upload: `st.chat_input(accept_file="multiple", file_type=["pdf", "xlsx", "docx", "png", "jpg"])`
 - Use `submit_mode="disable"` to prevent interrupting LLM responses
 - Render decision cards as styled `st.chat_message` content
+
+### Session State Contracts
+The following session state keys are set by the UI and consumed by components:
+- `st.session_state.identity_number` — set on login, used by chat and document status
+- `st.session_state.applicant_info` — set on login, used by chat for personalization
+- `st.session_state.uploaded_documents` — normalized dict keyed by `doc_type` (not `document_type`)
+- `st.session_state.current_phase` — tracks active phase for phase tracker and chat input
+- `st.session_state.high_contrast` — bool, accessibility high contrast mode toggle
+- `st.session_state.text_size` — str ("normal", "large", "xlarge"), accessibility text size
+- `st.session_state.last_request` — dict with "message" and "files" for error retry
+- `st.session_state.last_retry_count` — int, retry attempt counter for error recovery
+
+### Phase Label Contract
+Phase keys in `PHASE_LABELS` use `"authentication"` (not `"auth"`) to match backend state.
 
 ## Work Guidance
 
@@ -44,10 +57,8 @@ Use `st.navigation` with `st.Page` API (2025-2026 standard). Do NOT use `pages/`
 3. Import and use in pages
 
 ### Optimizing Performance
-1. Wrap expensive sections in `@st.fragment`
-2. Cache API calls with `@st.cache_data(ttl=300)`
-3. Cache global objects with `@st.cache_resource`
-4. Avoid storing large data in session state
+1. Wrap expensive sections in `@st.fragment` for partial reruns
+2. Follow caching conventions in `.cursor/rules/streamlit.mdc`
 
 ## Verification
 - Manual testing via Streamlit dev server
