@@ -9,6 +9,7 @@ from ui.components.document_status import (
     render_document_status,
     render_document_summary,
 )
+from ui.components.accessibility_controls import render_accessibility_controls
 from ui.components.phase_guidance import render_phase_guidance
 from ui.components.phase_tracker import render_phase_tracker
 from ui.fragments.chat_area import render_chat_area
@@ -70,6 +71,9 @@ def _render_header() -> None:
     )
 
     render_document_summary(st.session_state.get("uploaded_documents"))
+
+    # Accessibility controls in header
+    render_accessibility_controls()
 
 
 def _render_sidebar() -> None:
