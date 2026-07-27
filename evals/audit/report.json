@@ -1,0 +1,55 @@
+{
+  "total_tools": 19,
+  "tool_inventory": {
+    "extraction": [
+      "ocr_extract_tool",
+      "pdf_parse_tool",
+      "table_extract_tool",
+      "resume_parse_tool",
+      "xlsx_extract_tool",
+      "confidence_score_tool"
+    ],
+    "validation": [
+      "per_document_validation_tool",
+      "cross_document_compare_tool",
+      "discrepancy_classify_tool",
+      "applicant_clarify_tool",
+      "validation_confidence_tool"
+    ],
+    "eligibility": [
+      "ml_model_predict_tool",
+      "feature_importance_tool",
+      "adjust_factor_weighting_tool",
+      "eligibility_explanation_tool"
+    ],
+    "decision": [
+      "decision_logic_tool",
+      "decision_explanation_tool",
+      "enablement_recommendation_tool",
+      "decision_formatting_tool"
+    ]
+  },
+  "coverage_map": {
+    "extraction": {
+      "tool_count": 6,
+      "unit_test_count": 43,
+      "has_tests": true
+    },
+    "validation": {
+      "tool_count": 5,
+      "unit_test_count": 34,
+      "has_tests": true
+    },
+    "eligibility": {
+      "tool_count": 4,
+      "unit_test_count": 26,
+      "has_tests": true
+    },
+    "decision": {
+      "tool_count": 4,
+      "unit_test_count": 36,
+      "has_tests": true
+    }
+  },
+  "gaps": []
+}

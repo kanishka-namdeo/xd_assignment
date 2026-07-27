@@ -1,0 +1,34 @@
+---
+description: Langfuse v4 observability instrumentation, production patterns, and integration
+globs: ["**/observability/**/*.py"]
+---
+
+# Langfuse Patterns (v4)
+
+## v4 Migration Notes
+
+- Langfuse v4 (March 2026) is a ground-up rewrite with observation-centric data model
+- Import from `langfuse` (same package, new API)
+- SDK requires Pydantic v2
+- See migration guide: https://langfuse.com/docs/observability/sdk/upgrade-path/python-v3-to-v4
+
+## Instrumentation
+
+- Use `@observe()` decorator for auto-capture of inputs, outputs, timings
+- Use `@observe(as_type="generation")` for LLM calls (token/cost tracking)
+- Use context managers for more reliable control
+- Always include `user_id`, `session_id`, `tags`
+
+## Production
+
+- Call `langfuse.flush()` in short-lived processes
+- Avoid `ThreadPoolExecutor` for decorated functions
+- Tag traces for per-user cost analysis
+- Score sample of production traces (not all)
+- Gate deploys on regression checks
+
+## Integration
+
+- Use native integrations for LangChain, OpenAI, Anthropic
+- Emit OpenTelemetry spans to prevent vendor lock-in
+- Use `CallbackHandler` from `langfuse.langchain` (not `langfuse.callback`) for LangChain v3+

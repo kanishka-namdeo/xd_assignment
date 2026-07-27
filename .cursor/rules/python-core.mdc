@@ -1,0 +1,36 @@
+---
+description: Core Python 3.11+ syntax, type system, and Pydantic v2 conventions for all Python code
+alwaysApply: true
+---
+
+# Python Core Conventions
+
+## Type System (PEP 585/604)
+
+- Use built-in generics: `list[str]`, `dict[str, int]`, `tuple[int, ...]` — never `typing.List`, `typing.Dict`
+- Use PEP 604 unions: `X | Y`, `X | None` — never `Union[X, Y]`, `Optional[X]`
+- Use `Annotated[type, constraint]` for field constraints
+- Type hints required on all public functions and class attributes
+
+## Python Version
+
+- Target: Python 3.11.12
+- PEP 695 type parameters (`def f[T](x: T) -> T`) require 3.12+ — use `TypeVar` + `Generic` instead
+- Use `match/case` for complex conditionals
+
+## Pydantic v2
+
+- Use `field_validator`, `model_validator` — never deprecated `@validator`, `@root_validator`
+- Use `model_config = ConfigDict(...)` — never inner `class Config:`
+- Apply `strict=True` for business-critical fields
+- Use `SecretStr` for sensitive data
+
+## File Operations
+
+- Use `pathlib.Path` — never `os.path`
+
+## Dependency Management
+
+- Always commit `requirements.txt` with pinned versions
+- Pin apps with `==`, use ranges (`>=`, `<`) for libraries
+- Install: `pip install -r requirements.txt`

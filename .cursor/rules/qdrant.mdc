@@ -1,0 +1,33 @@
+---
+description: Qdrant vector database architecture, ingestion, and querying patterns
+globs: ["**/vector/**/*.py"]
+---
+
+# Qdrant Patterns
+
+## Architecture
+
+- Use gRPC (`prefer_grpc=True`) for throughput
+- Decouple: async ingestion worker + dedicated search API
+- Create one persistent client per service
+
+## Ingestion
+
+- Use batch upserts (5K-10K points)
+- Use `wait=True` for critical data; `wait=False` for backfills
+- Match embedding dimension exactly
+- Implement post-write count checks
+
+## Querying
+
+- Index payload fields you filter on
+- Increase `hnsw_ef` (default 64, try 128+) if recall is poor
+- Use scalar quantization for >10M vectors
+- Use binary quantization for massive corpus
+- Match `indexing_threshold` to segment count
+
+## Monitoring
+
+- Monitor `qdrant_search_duration_seconds` and WAL backlog
+- Check `indexed_vectors_count` vs `points_count`
+- Use Cosine distance for standard semantic search

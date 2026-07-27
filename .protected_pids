@@ -1,0 +1,8 @@
+# Protected PIDs - Auto-updated by services on startup
+# Agents MUST check this file AND use dynamic discovery before killing any Python process
+# Format: one PID per line (numeric only)
+#
+# DashScope proxy writes its PID here on startup.
+# If this file is empty or stale, agents fall back to:
+#   1. Port discovery: Get-NetTCPConnection -LocalPort 8899
+#   2. Command-line discovery: processes running dashscope_proxy.py

@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "superpowers": {
+      "enabled": true
+    },
+    "langfuse": {
+      "enabled": true
+    }
+  }
+}

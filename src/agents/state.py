@@ -36,5 +36,5 @@ class ApplicantState(TypedDict):
     extraction_results: Annotated[list[dict[str, Any]], operator.add]
     _next_action: str | None
     _clarification_questions: Annotated[list[dict[str, Any]], operator.add]
-    enablement_recommendations: Annotated[list[str], operator.add]
+    enablement_recommendations: list[str]
     new_documents_uploaded: bool

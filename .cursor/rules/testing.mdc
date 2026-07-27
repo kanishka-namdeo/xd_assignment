@@ -1,0 +1,55 @@
+---
+description: Unit testing patterns for AI agents, mocking strategies, evaluation tests, and structured logging conventions
+globs: ["tests/**/*.py"]
+---
+
+# Testing Patterns
+
+## Unit Testing AI Agents
+
+- Mock LLM layer; test everything around it
+- Use `unittest.mock` or `pytest-mock` with `AsyncMock`
+- Create controlled static responses
+- Test prompt construction, parsing, business logic separately
+
+## Best Practices
+
+- Use `pytest.mark.parametrize` for routing paths
+- Use `pytest-timeout` to prevent infinite loops
+- Separate deterministic unit tests from live-API E2E evals
+- Use record/replay (VCR.py, agentverify) for trajectory verification
+- Unit tests catch code bugs; evals catch prompt bugs
+
+## Evaluation Tests
+
+- Check behavior across dataset with input, expected, evaluator
+- Use code-based evaluators for objective tasks
+- Set thresholds by risk: 95% critical, 80% less critical
+- Run live provider tests nightly or before release
+- Track results over time
+
+## Logging in Tests
+
+Logging conventions from `.cursor/rules/logging-practices.mdc` apply to test code as well. Follow these guidelines:
+
+### Unit Tests
+- Rely primarily on pytest assertions for verification — explicit logging is optional
+- Add structured log events only when they provide diagnostic value beyond what assertions offer
+- Use `caplog` fixture or `structlog` test processors for log output verification when testing logging behavior itself
+
+### Integration and E2E Tests
+- Add structured log events for cross-cutting operations: phase transitions, database transactions, agent graph traversals, service calls
+- Include relevant IDs (`application_id`, `request_id`) and `duration_ms` for timed operations
+- Use `structlog.get_logger(__name__)` for named loggers
+- Log events in snake_case: `"phase_transition"`, `"document_uploaded"`, `"decision_reached"`
+- Use `logger.exception()` in except blocks — never bare `print()`
+
+### Test Helper Scripts
+- Scripts in `scripts/` that exercise the full pipeline must follow full structured logging conventions
+- Configure logging at script entry point via `configure_logging()` from `src/infrastructure/observability/logging.py`
+- Log operation start/complete, state transitions, and errors with appropriate levels
+- Include `duration_ms` for all timed operations
+
+### PII Safety
+- Never log PII values directly in test output (identity numbers, names, emails, phone numbers)
+- Log only IDs, counts, statuses, and derived values

@@ -1,0 +1,35 @@
+---
+description: Streamlit 1.60+ caching, performance, navigation, and data handling patterns
+globs: ["ui/**/*.py"]
+---
+
+# Streamlit Patterns (1.60+)
+
+## Navigation (st.navigation + st.Page)
+
+- Use `st.navigation` with `st.Page` API — not legacy `pages/` directory auto-discovery
+- Use `app_pages/` directory (not `pages/`) for page modules
+- `expanded` parameter accepts integer to control collapsed navigation items
+- `st.Page` accepts external URLs
+- Define pages: `st.Page("app_pages/chat.py", title="Chat", default=True)`
+
+## Caching
+
+- Use `@st.cache_data` for serializable values (DataFrames, lists)
+- Use `@st.cache_resource` for global objects (models, DB connections)
+- Always set `ttl` or `max_entries`
+- Never cache without limits for user-specific data
+
+## Performance
+
+- Use `@st.fragment` for partial reruns (up to 80% faster)
+- Use `st.form` to batch inputs
+- Use conditional rendering with `st.toggle`, `st.segmented_control`, `@st.dialog`
+- Avoid large DataFrames in `st.session_state`
+
+## Data Handling
+
+- Move aggregations to database level
+- Prefer Parquet over CSV
+- For 100M+ rows, use `@st.cache_resource`
+- Sample or paginate before sending to browser

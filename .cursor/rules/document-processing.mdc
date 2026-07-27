@@ -1,0 +1,55 @@
+---
+description: Document processing patterns for PDF, OCR, table extraction, image processing, and PDF generation
+globs: ["**/document_processing/**/*.py"]
+---
+
+# Document Processing Patterns
+
+## pymupdf4llm (PDF to LLM-Ready Format)
+
+- Use `to_markdown()` for RAG pipelines and LLM ingestion
+- Use `to_json()` for custom pipelines needing bounding boxes
+- Use `to_text()` for search indexing
+- Set `page_chunks=True` for per-page metadata
+- Table extraction enabled by default (ruled and borderless)
+- Use `force_ocr=True` only for corrupt text layers
+- Use `use_ocr=False` for text-only documents
+- Process only needed pages with `pages` parameter
+- Cache extraction results to disk after first run
+
+## paddleocr (OCR Engine)
+
+- Enable high-performance inference: `enable_hpi=True`
+- Use TensorRT acceleration: `use_tensorrt=True` with CUDA 11.8+
+- Use FP16 precision: `precision="fp16"`
+- Tune `batch_size` based on GPU memory (default 30)
+- Use mobile models (`PP-OCRv5_mobile`) for resource-constrained devices
+
+## camelot-py (Table Extraction from PDFs)
+
+- `flavor="lattice"`: Ruled tables with visible lines
+- `flavor="stream"`: Borderless tables with whitespace-separated columns
+- `flavor="network"`: Borderless tables via text-edge alignment (faster)
+- `flavor="auto"`: Detects flavor per page
+- Use `table_areas` for exact table boundaries
+- Check `Table.parsing_report` confidence field
+
+## ReportLab (PDF Generation)
+
+- Use Platypus framework for high-level document layout
+- Use Canvas API for low-level drawing
+- Use `LongTable` for large datasets (streams to disk)
+- Use `ProcessPoolExecutor` (not threads) for high-volume generation
+- Pre-load fonts once before spawning workers
+- Reuse styles: create `getSampleStyleSheet()` once per worker
+
+## Pillow (Image Processing)
+
+- Never set `Image.MAX_IMAGE_PIXELS = None` (decompression bomb protection)
+- Treat `DecompressionBombWarning` as error
+- Validate file size, dimensions, and format before decoding
+- Decode untrusted images in sandboxed subprocess with memory limits
+- Never pass untrusted data to `ImageMath.eval()`
+- Strip metadata from user-uploaded images before re-encoding
+- Call `Image.close()` to release memory when done
+- Convert color modes explicitly: `img.convert("RGB")` before saving as JPEG

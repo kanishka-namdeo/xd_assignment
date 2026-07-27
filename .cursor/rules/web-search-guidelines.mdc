@@ -1,0 +1,47 @@
+---
+description: Project Rule - Proactive web search guidelines for AI agents
+alwaysApply: true
+---
+
+# Proactive Web Search Guidelines
+
+## Core Decision Factors
+
+**Always search** for:
+- Temporal signals: "current", "latest", "now", "recently", "today", "updated", "v2.5", "since release"
+- High-staleness domains: pricing, security (CVEs, patches), regulations, package versions, breaking changes, news, org changes
+- Low confidence: uncertain answers, niche facts, knowledge may be outdated
+- Library queries: current API syntax, migration guides, deprecations, version-specific errors
+
+**Skip search** for: stable syntax, established patterns (REST, SQL), algorithms, design patterns
+
+## Mandatory Search (Overrides Skip Conditions)
+
+| Workflow | Trigger |
+|----------|---------|
+| brainstorming, writing-plans | Before any implementation plan |
+| test-driven-development | Before writing tests |
+| systematic-debugging | Unfamiliar errors, library-specific issues |
+| receiving-code-review | Validating against current best practices |
+
+## Staleness Thresholds (Search If Exceeded)
+
+- Security, pricing, news: hours to 1 day
+- Package versions (active dev): 1 week
+- Regulations, framework docs: 2 weeks to 1 month
+- Stable libraries: 6 months
+- Core language features: rarely needed
+
+## Verification Protocol
+
+For time-sensitive information:
+- Note source date when available
+- Cross-reference multiple sources for critical facts
+- Acknowledge uncertainty when sources conflict
+
+## MCP Servers for Specialized Search
+
+Prefer specialized MCP servers when available:
+- **context7**: Library/framework documentation (avoids web search overhead)
+- **GitHub MCP**: Repository-specific searches
+- **Domain servers**: Datadog (monitoring), Linear (issues), etc.

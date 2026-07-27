@@ -1,0 +1,27 @@
+---
+description: PostgreSQL async patterns, connection pooling, and query optimization
+globs: ["**/db/**/*.py", "**/repositories/**/*.py"]
+---
+
+# PostgreSQL Patterns
+
+## Async Patterns
+
+- Use `asyncpg` with SQLAlchemy 2.0: `postgresql+asyncpg://`
+- Set `expire_on_commit=False` in `async_sessionmaker`
+- Use `pool_pre_ping=True` for cloud environments
+- Set `pool_recycle=1800` (30 min)
+
+## Connection Pooling
+
+- Formula: `total = workers * (pool_size + max_overflow)`
+- Ensure total doesn't exceed `max_connections`
+- Use `NullPool` + PgBouncer for task workers
+- Set `statement_cache_size=0` with PgBouncer transaction mode
+
+## Query Optimization
+
+- Use `selectinload` for relationships
+- Use `joinedload` for single relationships
+- Handle rollbacks explicitly
+- Set `statement_timeout` via `SET LOCAL`

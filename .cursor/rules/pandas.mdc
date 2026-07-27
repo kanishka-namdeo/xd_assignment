@@ -1,0 +1,38 @@
+---
+description: pandas performance optimization, memory management, and best practices
+globs: ["**/*.py"]
+---
+
+# pandas Patterns
+
+## Performance Optimization
+
+- Use PyArrow backend for string columns: `dtype="string[pyarrow]"` for 5-10x faster string ops and 50% memory reduction
+- Enable Copy-on-Write: `pd.options.mode.copy_on_write = True` (default in pandas 3.0+)
+- Use `.loc[]` or `.iloc[]` for all assignments; chained assignment raises `ChainedAssignmentError`
+- Prefer nullable dtypes (`Int64`, `Float64`, `boolean`) over object dtype
+- Use method chaining with `.assign()`, `.pipe()`, `.query()`
+
+## Memory Management
+
+- Use `chunksize` parameter in `read_csv()` for large files (>1GB)
+- Downcast numeric types: `pd.to_numeric(df['col'], downcast='integer')`
+- Use `category` dtype for low-cardinality string columns
+- Avoid `inplace=True`; it doesn't save memory with CoW
+- Use `del df['col']` or `df.drop(columns=[...])` to free memory
+
+## Best Practices
+
+- Use `pd.read_parquet()` instead of CSV for 10-100x faster I/O
+- Set `dtype` explicitly in `read_csv()` to avoid type inference overhead
+- Use `groupby()` with `observed=True` for categorical columns
+- Prefer `merge()` over `join()` for explicit control
+- Use `pd.eval()` for large DataFrame arithmetic operations
+
+## Anti-Patterns
+
+- Never use `df[col][mask] = value` (chained assignment; use `.loc[]`)
+- Never load entire large CSV into memory (use chunks or Parquet)
+- Never use `apply()` when vectorized operations exist (10-100x slower)
+- Never ignore `SettingWithCopyWarning` (fix root cause with `.loc[]`)
+- Never use `object` dtype for strings (use `string[pyarrow]`)

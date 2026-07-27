@@ -1,0 +1,52 @@
+---
+description: LangGraph agent orchestration patterns, state management, and reasoning frameworks
+globs: ["src/agents/**/*.py"]
+---
+
+# LangGraph Agent Patterns
+
+## State Management
+
+- Define state with `TypedDict` using `Annotated` reducers: `Annotated[list, add_messages]`
+- Keep state under 50KB per checkpoint; store large data in external Store
+- Use accumulators for growing data: messages, findings, errors
+
+## Persistence
+
+- Always use durable checkpointer: `PostgresSaver` or `SqliteSaver` — never `InMemorySaver` in prod
+- Use `AsyncPostgresSaver.from_conn_string()` for async apps
+- Set checkpoint TTL to prevent unbounded growth
+
+## Human-in-the-Loop
+
+- Use `interrupt()` for irreversible actions; resume with `Command`
+- Route business-rule errors to `interrupt()` not retry
+- Test resume across process restarts
+
+## Failure Handling
+
+- Design failure through graph topology (validation nodes, escalation edges)
+- Classify: transient (retry), business-rule (escalate), LLM errors (bounded repair)
+- Set recursion limit deliberately
+
+## ReAct Pattern
+
+- Use `create_agent` from `langchain.agents` — not deprecated `create_react_agent` from `langgraph.prebuilt`
+- Import: `from langchain.agents import create_agent`
+- Use `system_prompt` parameter for static prompts; use middleware for dynamic prompts
+- Define tools with `@tool` decorator; docstring is selection criteria
+- Include in docstring: what, when, params, return format, examples
+- Keep tools atomic; complex = multiple composable tools
+- Set iteration limits (5-10)
+- Enable streaming
+- Use persistent checkpointer
+- Generate structured outputs only at final step
+
+## Reflexion Pattern
+
+- Three components: Actor, Evaluator, Reflector
+- Loop: attempt -> evaluate -> critique -> store -> retry
+- Use for complex reasoning where accuracy > latency
+- Use LangGraph for orchestration
+- Use Pydantic for structured outputs
+- Watch for "degeneration-of-thought"

@@ -1,0 +1,32 @@
+---
+description: FastAPI project structure, async patterns, dependency injection, and database integration
+globs: ["src/api/**/*.py"]
+---
+
+# FastAPI Patterns
+
+## Async vs Sync
+
+- Use `async def` only when you `await` inside
+- Use `def` for CPU-bound or sync libraries
+- Never mix blocking calls inside `async def`
+
+## Project Structure
+
+- Follow the four-layer architecture defined in `src/AGENTS.md`: `api/` (thin routes) → `services/` → `agents/` + `domain/` → `infrastructure/`
+- Use `APIRouter` per domain
+- Use `lifespan` context manager — never deprecated `@app.on_event`
+
+## Dependency Injection
+
+- Use `Depends` for DB sessions, auth, config
+- Use `Annotated` with `Depends`: `db: AsyncSession = Depends(get_db)`
+- Use `yield` dependencies for cleanup
+- Design for `dependency_overrides` in tests
+
+## Performance
+
+- Connection pool: `pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`, `pool_recycle=1800`
+- Use `BackgroundTasks` for fire-and-forget; use task queues for retries or long jobs
+- Set `response_model` and `status_code` explicitly
+- Version API: `/api/v1/...`

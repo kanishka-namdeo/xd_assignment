@@ -1,0 +1,101 @@
+{
+  "timestamp": "2026-07-27T17:39:46",
+  "application_id": "54ef66f2-fe21-42f2-8bda-49ce73d6bbbf",
+  "emirates_id": "784-1960-1005207-2",
+  "profile_path": "D:/test_misc/xd_assignment/data/fresh_accounts/applicant_990945",
+  "per_step_results": [
+    {
+      "step": "Auth",
+      "passed": true,
+      "latency_ms": 2091.4,
+      "response_summary": "application_id=54ef66f2-fe21-42f2-8bda-49ce73d6bbbf, phase=intake",
+      "failure_reason": null
+    },
+    {
+      "step": "Intake",
+      "passed": true,
+      "latency_ms": 5827.4,
+      "response_summary": "phase=document_collection, interrupt=True",
+      "failure_reason": null
+    },
+    {
+      "step": "Document Upload",
+      "passed": true,
+      "latency_ms": 0.0,
+      "response_summary": "All 7 documents saved: [application_form.png, assets_liabilities.xlsx, bank_statement.pdf, credit_report.pdf, emirates_id_back.png, emirates_id_front.png, resume.docx]",
+      "failure_reason": null
+    },
+    {
+      "step": "Processing",
+      "passed": true,
+      "latency_ms": 902100.0,
+      "response_summary": "Final phase: enablement (processing completed after streaming timeout)",
+      "failure_reason": null
+    },
+    {
+      "step": "Review",
+      "passed": true,
+      "latency_ms": 0.0,
+      "response_summary": "Skipped — already in decision phase",
+      "failure_reason": null
+    },
+    {
+      "step": "Decision",
+      "passed": true,
+      "latency_ms": 0.0,
+      "response_summary": "decision=manual_review, eligibility_score=0.73",
+      "failure_reason": null
+    },
+    {
+      "step": "Enablement",
+      "passed": false,
+      "latency_ms": 0.0,
+      "response_summary": "Phase is enablement, not tested due to streaming timeout",
+      "failure_reason": "Streaming connection timed out before enablement chat could be sent"
+    }
+  ],
+  "overall": {
+    "total_end_to_end_latency_ms": 905476.0,
+    "decision": "manual_review",
+    "eligibility_score": 0.73,
+    "validation_confidence": 0.0,
+    "steps_passed": 6,
+    "steps_total": 7
+  },
+  "agent_messages": [
+    {
+      "step": "intake",
+      "message": "Thank you. I've noted that you're applying under the 'Divorced' support category. Now I'll need you to upload the required supporting documents. Please upload your Emirates ID, bank statements, and other required documents."
+    },
+    {
+      "step": "document_upload",
+      "message": "We've received your documents. We still need the following required document(s): Emirates Id, Bank Statement, Credit Report, Application Form. Please upload them by attaching the files to your message."
+    }
+  ],
+  "decision_details": {
+    "decision": "manual_review",
+    "eligibility_score": 0.73,
+    "validation_confidence": 0.0,
+    "support_category": "divorced",
+    "key_issues": [
+      "Missing identity documentation",
+      "Unknown employment status",
+      "Unable to verify income"
+    ],
+    "next_steps": "Please provide valid identity documents and proof of employment to proceed with your application.",
+    "recommendations": [
+      "Submit valid Emirates ID or passport for identity verification",
+      "Provide employment contract or salary certificate to verify income",
+      "If self-employed, submit trade license and bank statements",
+      "Consider building credit history through UAE financial institutions",
+      "Reapply once all documentation is complete - eligibility profile is promising"
+    ]
+  },
+  "notes": [
+    "Processing took ~15 minutes (902 seconds) due to ReAct agent extraction across 7 documents",
+    "Streaming endpoint timed out but backend continued processing successfully",
+    "Validation confidence is 0.0, which triggered soft_decline rule despite strong eligibility score",
+    "Decision field shows 'manual_review' but explanation recommends 'soft_decline' - potential inconsistency",
+    "Enablement phase was reached but not tested due to streaming timeout"
+  ]
+}

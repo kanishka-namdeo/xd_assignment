@@ -1,0 +1,31 @@
+---
+description: Async/await patterns, structured concurrency, and error handling for Python code
+globs: ["**/*.py"]
+---
+
+# Async/Await Patterns
+
+## Structured Concurrency (Python 3.11+)
+
+- Use `asyncio.TaskGroup` for production code — never `asyncio.gather()`
+- TaskGroup auto-cancels all tasks if one fails
+- Use `asyncio.timeout()` — never `asyncio.wait_for()`
+
+## Concurrency Control
+
+- Use `asyncio.Semaphore` to bound concurrency
+- Tune to `floor(rate_limit / avg_seconds_per_call / 60)` with 20-30% headroom
+- Never run unbounded `gather()` against external APIs
+
+## Error Handling
+
+- Use `tenacity` for exponential backoff with jitter
+- Retry only 429 and 5xx — never retry 4xx
+- Add jitter: `random.uniform(0, 1)` to prevent thundering herd
+- Respect `retry-after` headers
+
+## CPU-Bound Work
+
+- Use `asyncio.to_thread()` for CPU-bound post-processing
+- Never call sync blocking code inside `async def`
+- Use `def` for CPU-bound; FastAPI runs it in thread pool

@@ -1,0 +1,32 @@
+---
+description: Neo4j graph database performance, connection management, and query patterns
+globs: ["**/graph/**/*.py"]
+---
+
+# Neo4j Patterns
+
+## Performance
+
+- Install `neo4j-rust-ext` for 3-10x speedup
+- Always specify target database in queries
+- Use query parameters (not string formatting)
+- Use `session.execute_read/write` for lazy streaming
+
+## Connection Management
+
+- Set `max_connection_pool_size` appropriately
+- Always use `with driver.session(...) as session`
+- Use `execute_query` for small/medium; `session.run` for extreme throughput
+
+## Query Patterns
+
+- Profile with `PROFILE` to identify bottlenecks
+- Create indexes on frequently queried properties
+- Use `UNWIND` for batch operations
+- Stream large results lazily
+
+## AI Integration
+
+- Use Neo4j MCP Server for agent graph memory
+- Leverage `ai.*` namespace for Cypher-native AI procedures
+- Store embeddings and metadata together for hybrid search

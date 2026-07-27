@@ -1,0 +1,55 @@
+---
+description: Project Rule - Python 3.11.12 virtual environment requirements
+alwaysApply: true
+---
+
+# Python Virtual Environment Usage
+
+This project uses a dedicated Python 3.11.12 virtual environment located at `.venv/`. All Python work within this project MUST use this virtual environment.
+
+## Mandatory Requirements
+
+### Python Commands
+
+Always use the venv's Python executable directly:
+
+```bash
+# Correct - use venv Python directly
+.\.venv\Scripts\python.exe <command>
+
+# Correct - use venv's pip directly  
+.\.venv\Scripts\pip.exe <command>
+```
+
+**Never** use system Python (`python`, `py`, `python3`) without explicitly invoking the venv executable.
+
+### Package Installation
+
+When installing packages:
+
+```bash
+# Correct
+.\.venv\Scripts\pip.exe install <package>
+
+# Wrong - do NOT use system pip
+pip install <package>
+```
+
+### Running Scripts
+
+```bash
+# Correct
+.\.venv\Scripts\python.exe script.py
+
+# Wrong - do NOT use system Python
+python script.py
+```
+
+### Virtual Environment Management
+
+- Do NOT recreate the venv unless explicitly requested
+- Do NOT delete the venv
+- Do NOT use a different Python version for this project
+- The venv is already gitignored - do not modify `.gitignore` for venv exclusions
+
+**Version**: Python 3.11.12 at `.venv/` for AI/ML stack compatibility (LangGraph, Streamlit, scikit-learn, FastAPI)
