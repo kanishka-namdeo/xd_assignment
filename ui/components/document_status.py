@@ -67,7 +67,7 @@ def render_document_progress(support_category: str | None = None) -> None:
 
     # Build a set of uploaded doc_type values from the list of dicts
     uploaded_types = {
-        doc.get("doc_type", "").lower() if isinstance(doc, dict) else str(doc).lower()
+        doc.get("doc_type") or "".lower() if isinstance(doc, dict) else str(doc).lower()
         for doc in uploaded_docs
     }
     uploaded_count = len([doc for doc in required if doc.lower() in uploaded_types])
