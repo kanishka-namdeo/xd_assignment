@@ -3,16 +3,29 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from src.agents.orchestrator.di import _make_assistant_message, get_services
+from src.utils.retry import retry_transient
 
 if TYPE_CHECKING:
     from src.agents.state import ApplicantState
 
 logger = structlog.get_logger(__name__)
+
+
+@retry_transient(max_retries=3, base_delay=1.0)
+async def _invoke_eligibility_subgraph(graph: Any, state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    """Invoke eligibility subgraph with retry logic for transient failures."""
+    return await graph.ainvoke(state, config=config)
+
+
+@retry_transient(max_retries=3, base_delay=1.0)
+async def _invoke_decision_subgraph(agent: Any, state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    """Invoke decision agent with retry logic for transient failures."""
+    return await agent.ainvoke(state, config=config)
 
 
 async def decision_node(state: "ApplicantState") -> "ApplicantState":
@@ -34,7 +47,7 @@ async def decision_node(state: "ApplicantState") -> "ApplicantState":
 
         eligibility_graph = get_eligibility_graph()
         config = {"configurable": {"thread_id": f"{application_id}_eligibility", "recursion_limit": 10}}
-        eligibility_result = await eligibility_graph.ainvoke(state, config=config)
+        eligibility_result = await _invoke_eligibility_subgraph(eligibility_graph, state, config)
         eligibility_score = eligibility_result.get("eligibility_score", 0.5)
         eligibility_factors = eligibility_result.get("eligibility_factors", {})
         logger.info("eligibility_agent_complete", score=eligibility_score, gate_status=eligibility_result.get("gate_status"))
@@ -75,7 +88,7 @@ async def decision_node(state: "ApplicantState") -> "ApplicantState":
 
         decision_state = {**state, "eligibility_score": eligibility_score, "eligibility_factors": eligibility_factors}
         config = {"configurable": {"thread_id": f"{application_id}_decision", "recursion_limit": 10}}
-        decision_result = await decision_agent.ainvoke(decision_state, config=config)
+        decision_result = await _invoke_decision_subgraph(decision_agent, decision_state, config)
         decision = decision_result.get("decision", "manual_review")
         decision_explanation = decision_result.get("decision_explanation", decision_explanation)
         logger.info("decision_agent_complete", decision=decision)

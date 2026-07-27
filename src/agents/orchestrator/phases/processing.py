@@ -8,11 +8,25 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from src.agents.orchestrator.di import _make_assistant_message
+from src.utils.retry import retry_transient
 
 if TYPE_CHECKING:
     from src.agents.state import ApplicantState
 
 logger = structlog.get_logger(__name__)
+
+
+@retry_transient(max_retries=3, base_delay=1.0)
+async def _invoke_extraction_subgraph(graph: Any, state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    """Invoke extraction subgraph with retry logic for transient failures."""
+    return await graph.ainvoke(state, config=config)
+
+
+@retry_transient(max_retries=3, base_delay=1.0)
+async def _invoke_validation_subgraph(state: dict[str, Any]) -> dict[str, Any]:
+    """Invoke validation subgraph with retry logic for transient failures."""
+    from src.agents.validation.graph import run_validation_agent
+    return await run_validation_agent(state)
 
 
 async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
@@ -46,7 +60,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
 
         graph = get_extraction_subgraph()
         config = {"configurable": {"thread_id": f"{application_id}_extraction", "recursion_limit": 10}}
-        result = await graph.ainvoke(state, config=config)
+        result = await _invoke_extraction_subgraph(graph, state, config)
         gate_status = result.get("gate_status", "unknown")
         logger.info("extraction_agent_complete", document_count=len(result.get("extracted_data", {})), gate_status=gate_status)
 
@@ -99,9 +113,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
     validation_results: dict = {}
     discrepancies: list = []
     try:
-        from src.agents.validation.graph import run_validation_agent
-
-        val_result = await run_validation_agent({**state, "extracted_data": extracted_data})
+        val_result = await _invoke_validation_subgraph({**state, "extracted_data": extracted_data})
         validation_results = val_result.get("validation_results", {})
         discrepancies = val_result.get("discrepancies", [])
         logger.info("validation_agent_complete", discrepancy_count=len(discrepancies), gate_status=val_result.get("gate_status"))
