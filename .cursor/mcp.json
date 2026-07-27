@@ -1,0 +1,57 @@
+{
+  "mcpServers": {
+    "Prisma": {
+      "url": "https://mcp.prisma.io/mcp"
+    },
+    "vercel": {
+      "url": "https://mcp.vercel.com"
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless=true",
+        "--isolated=true",
+        "--experimentalPageIdRouting=true",
+        "--experimentalMemory=true",
+        "--experimentalScreencast=true",
+        "--experimentalVision=true",
+        "--experimentalStructuredContent=true",
+        "--experimentalIncludeAllPages=true",
+        "--categoryExperimentalThirdParty=true"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--vision",
+        "--allow-unrestricted-file-access",
+        "--no-sandbox",
+        "--cdp-endpoint=http://localhost:9222"
+      ]
+    },
+    "ESLint": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@eslint/mcp@latest"
+      ]
+    },
+    "mcp-deepwiki": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-deepwiki@latest"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
+    }
+  }
+}

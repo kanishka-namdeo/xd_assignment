@@ -189,15 +189,20 @@ class ChatService:
         application.current_phase = new_phase
         await self.application_repo.update(application)
 
-        # Build uploaded documents list
-        uploaded_documents = [
-            UploadedDocument(
-                doc_type=doc.get("document_type", doc.get("doc_type", "unknown")),
-                file_path=doc.get("file_path", ""),
-                status=doc.get("status", "uploaded"),
-            )
-            for doc in result.get("uploaded_documents", [])
-        ]
+        # Build uploaded documents list (deduplicate by file_path)
+        seen_paths = set()
+        uploaded_documents = []
+        for doc in result.get("uploaded_documents", []):
+            file_path = doc.get("file_path", "")
+            if file_path and file_path not in seen_paths:
+                seen_paths.add(file_path)
+                uploaded_documents.append(
+                    UploadedDocument(
+                        doc_type=doc.get("document_type", doc.get("doc_type", "unknown")),
+                        file_path=file_path,
+                        status=doc.get("status", "uploaded"),
+                    )
+                )
 
         # Format decision card if decision reached
         formatted_card = None

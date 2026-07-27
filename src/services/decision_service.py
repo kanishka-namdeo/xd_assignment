@@ -129,17 +129,34 @@ class DecisionService:
         from JSON strings when the LLM returns structured output.
         """
         import json
+        import re
 
         from src.agents.decision.tools import decision_formatting_tool
 
         explanation = decision_data.get("explanation", "")
         if isinstance(explanation, str):
+            # Try to extract JSON from markdown code fences or raw JSON
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', explanation)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                json_str = explanation.strip()
+
             try:
-                parsed = json.loads(explanation)
-                if isinstance(parsed, dict) and "explanation" in parsed:
-                    decision_data["explanation"] = parsed["explanation"]
-                    if "decision" in parsed and not decision_data.get("decision"):
-                        decision_data["decision"] = parsed["decision"]
+                parsed = json.loads(json_str)
+                if isinstance(parsed, dict):
+                    # Extract formatted_card if available (preferred)
+                    if "formatted_card" in parsed:
+                        formatted = parsed["formatted_card"]
+                        if "explanation" in formatted:
+                            decision_data["explanation"] = formatted["explanation"]
+                        if "decision" in formatted and not decision_data.get("decision"):
+                            decision_data["decision"] = formatted["decision"]
+                    # Fallback to explanation field
+                    elif "explanation" in parsed:
+                        decision_data["explanation"] = parsed["explanation"]
+                        if "decision" in parsed and not decision_data.get("decision"):
+                            decision_data["decision"] = parsed["decision"]
             except (json.JSONDecodeError, TypeError):
                 pass
 

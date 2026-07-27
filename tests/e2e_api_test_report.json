@@ -1,0 +1,113 @@
+{
+  "test_timestamp": "2026-07-27T22:12:30.458649",
+  "emirates_id": "784-1995-3493270-4",
+  "profile_dir": "D:\\test_misc\\xd_assignment\\data\\fresh_accounts\\applicant_953842",
+  "per_step_results": [
+    {
+      "step": "Auth",
+      "passed": false,
+      "latency_ms": 2059.14,
+      "response_summary": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"emirates_id\"],\"msg\":\"Field required\",\"input\":{\"identity_number\":\"784-1995-3493270-4\"}}]}",
+      "failure_reason": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"emirates_id\"],\"msg\":\"Field required\",\"input\":{\"identity_number\":\"784-1995-3493270-4\"}}]}"
+    },
+    {
+      "step": "Intake",
+      "passed": false,
+      "latency_ms": 0,
+      "response_summary": "Skipped",
+      "failure_reason": "No application_id from auth step"
+    },
+    {
+      "step": "Document Upload",
+      "passed": false,
+      "latency_ms": 0,
+      "response_summary": "Skipped",
+      "failure_reason": "Previous step failed"
+    },
+    {
+      "step": "Processing",
+      "passed": false,
+      "latency_ms": 0,
+      "response_summary": "Skipped",
+      "failure_reason": "No application_id"
+    },
+    {
+      "step": "Review",
+      "passed": false,
+      "latency_ms": 0,
+      "response_summary": "Skipped (phase not review, got: Skipped)",
+      "failure_reason": "Phase was not review after processing"
+    },
+    {
+      "step": "Decision",
+      "passed": false,
+      "latency_ms": 0,
+      "response_summary": "Skipped",
+      "failure_reason": "No application_id"
+    },
+    {
+      "step": "Enablement",
+      "passed": false,
+      "latency_ms": 0,
+      "response_summary": "Skipped",
+      "failure_reason": "No application_id"
+    }
+  ],
+  "overall": {
+    "total_end_to_end_latency_ms": 2059.14,
+    "decision": null,
+    "eligibility_score": null
+  },
+  "all_agent_messages": [],
+  "failure_queue": [
+    {
+      "step": "Auth",
+      "symptom": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"emirates_id\"],\"msg\":\"Field required\",\"input\":{\"identity_number\":\"784-1995-3493270-4\"}}]}",
+      "error_message": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"emirates_id\"],\"msg\":\"Field required\",\"input\":{\"identity_number\":\"784-1995-3493270-4\"}}]}",
+      "stack_trace": null,
+      "category": "api"
+    },
+    {
+      "step": "Intake",
+      "symptom": "Skipped",
+      "error_message": "No application_id from auth step",
+      "stack_trace": null,
+      "category": "agent"
+    },
+    {
+      "step": "Document Upload",
+      "symptom": "Skipped",
+      "error_message": "Previous step failed",
+      "stack_trace": null,
+      "category": "agent"
+    },
+    {
+      "step": "Processing",
+      "symptom": "Skipped",
+      "error_message": "No application_id",
+      "stack_trace": null,
+      "category": "agent"
+    },
+    {
+      "step": "Review",
+      "symptom": "Skipped (phase not review, got: Skipped)",
+      "error_message": "Phase was not review after processing",
+      "stack_trace": null,
+      "category": "agent"
+    },
+    {
+      "step": "Decision",
+      "symptom": "Skipped",
+      "error_message": "No application_id",
+      "stack_trace": null,
+      "category": "agent"
+    },
+    {
+      "step": "Enablement",
+      "symptom": "Skipped",
+      "error_message": "No application_id",
+      "stack_trace": null,
+      "category": "agent"
+    }
+  ]
+}

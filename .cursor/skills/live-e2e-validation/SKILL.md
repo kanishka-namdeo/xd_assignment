@@ -1,15 +1,15 @@
 ---
 name: live-e2e-validation
-description: Live end-to-end validation of the Social Support Application system using real LLM requests (StreamLake + Ollama embeddings), actual documents, and fresh test accounts. Covers preflight, infrastructure startup, coordinated subagent delegation for API/UI/edge-case/agent-experience testing, dedicated fix subagents (5A API/agent, 5B UI/frontend, 5C infrastructure/DB) with isolated contexts, fix-and-iterate orchestration, tracker documentation, and closeout. Use when validating changes end-to-end before merge, after major refactors, or when debugging cross-cutting issues that unit/integration tests cannot catch.
+description: Live end-to-end validation of the Social Support Application system through the lens of a real end user interacting with the agent-based UI. Uses real LLM requests (StreamLake + Ollama embeddings), actual generated documents, and fresh test accounts. Focuses on the complete user journey — from landing page through enablement — and fixes whatever breaks along the way, regardless of which layer the bug lives in. Produces a living tracker document from the start.
 ---
 
 # Live E2E Validation
 
 ## Mission
 
-Validate that the full application works end-to-end with **real LLM requests** (StreamLake `kat-coder-pro-v2.5` for reasoning by default, Ollama `nomic-embed-text:v1.5` for embeddings) and **actual generated documents** — not mocks. Test every phase of the 7-phase applicant flow, fix whatever breaks, and iterate until all flows pass. Produce a living tracker document from the start.
+Validate that the full application works end-to-end **from the perspective of a real applicant** interacting with the agent-based UI. Use **real LLM requests** (StreamLake `kat-coder-pro-v2.5` for reasoning by default, Ollama `nomic-embed-text:v1.5` for embeddings) and **actual generated documents** — not mocks. Drive the application forward through the UI exactly as a human would, observe what the user sees and experiences, fix whatever breaks (UI, API, agent, infrastructure — no layer is off-limits), and iterate until the full user journey is smooth. Produce a living tracker document from the start.
 
-**Context isolation:** Testing subagents (1–4) are read-only observers — they detect and report failures but never touch code. Fix subagents (5A–5C) are code-writing agents with isolated context, each owning a distinct failure domain. This keeps test contexts lean and fix contexts focused on the actual repair work.
+**Context isolation:** Testing subagents (1–2) are read-only observers — they detect and report failures but never touch code. Fix subagents (3A–3C) are code-writing agents with isolated context, each owning a distinct failure domain. This keeps test contexts lean and fix contexts focused on the actual repair work.
 
 **Search-first discipline:** Before diagnosing any failure, run a web search for the exact error or symptom plus the relevant library name and the year (2026). Do not guess. Do not attempt a fix without first consulting current library-specific documentation. This applies to every phase and every subagent.
 
@@ -98,19 +98,17 @@ curl http://localhost:8000/api/v1/health/llm
 
 ### 1.4 Fresh Test Accounts
 
-Generate two fresh accounts — one for the API happy-path test and one for the UI browser test. They run in parallel in Wave 1 and must not share an `application_id`.
+Generate two fresh accounts — one for the primary UI browser flow and one for the agent-experience audit. They must not share an `application_id`.
 
 ```powershell
-# Account A — for Subagent 1 (API happy path)
+# Account A — for Subagent 1 (primary UI browser flow)
 .\.venv\Scripts\python.exe scripts/generate_fresh_account.py
 # Capture: emirates_id_A, profile_path_A
 
-# Account B — for Subagent 2 (UI browser flow)
+# Account B — for Subagent 2 (agent experience audit)
 .\.venv\Scripts\python.exe scripts/generate_fresh_account.py
 # Capture: emirates_id_B, profile_path_B
 ```
-
-Subagent 3 (edge cases) generates its own fresh Emirates IDs internally and does not need a pre-generated account.
 
 **Do not launch subagents until all preflight checks pass.**
 
@@ -128,9 +126,9 @@ Create `docs/live-testing-tracker.md` before launching any tests. Use this exact
 | Git branch / commit | |
 | LLM provider | |
 | Embedding model | |
-| Account A (API) — Emirates ID | |
+| Account A (UI flow) — Emirates ID | |
 | Account A — Profile path | |
-| Account B (UI) — Emirates ID | |
+| Account B (experience audit) — Emirates ID | |
 | Account B — Profile path | |
 
 ## Test Matrix
@@ -175,30 +173,20 @@ Rate each dimension 1-5 (1=poor, 5=excellent). Record specific message examples.
 
 ## Phase 3: Test Subagents
 
-Launch the four test subagents in waves according to the shared-state conflict analysis below. **Test subagents are read-only — they detect and report failures but never touch code.** Do not launch a subagent until its wave dependencies have reported results.
-
-### Shared-State Conflict Analysis
-
-| Subagent pair | Conflict? | Reason |
-|---------------|-----------|--------|
-| Subagent 1 (API) + Subagent 2 (UI) | **YES — must not run in parallel** | Both drive an application forward via chat. If they target the same `application_id`, LangGraph checkpoint state interleaves messages, interrupts are consumed by the wrong request, and both tests produce corrupted results. |
-| Subagent 1 (API) + Subagent 3 (Edge Cases) | No | Subagent 3 generates its own fresh Emirates IDs per scenario. No shared application state. |
-| Subagent 2 (UI) + Subagent 3 (Edge Cases) | No | Subagent 2 uses its own fresh account. Subagent 3 uses independently generated IDs. |
-| Subagent 4 (Experience) + any | No (but strictly sequential) | Pure read-only audit of message logs. Depends on completion of all three. |
+Launch the two test subagents in waves. **Test subagents are read-only — they detect and report failures but never touch code.** Do not launch a subagent until its wave dependencies have reported results.
 
 ### Wave Schedule
 
 ```
-Wave 1 (parallel):
-  Subagent 1 — API Happy Path (uses emirates_id_A, profile_path_A)
-  Subagent 2 — UI Browser Flow (uses emirates_id_B, profile_path_B)
+Wave 1:
+  Subagent 1 — UI Browser Flow (uses emirates_id_A, profile_path_A)
+  Drives the full 7-phase applicant journey through the Streamlit UI as a real user would.
+  Records every UI observation, agent message, phase transition, and failure.
 
-Wave 2 (parallel):
-  Subagent 3 — Edge Cases & Error Paths (generates own fresh IDs)
-  Subagent 4 — Agent Experience Audit (needs message logs from Wave 1 + Subagent 3)
-
-Note: Subagent 4 depends on Subagent 3's message logs for edge-case tone evaluation.
-Launch Subagent 4 only after both Wave 1 subagents AND Subagent 3 have reported.
+Wave 2:
+  Subagent 2 — Agent Experience Audit (uses message logs from Subagent 1)
+  Evaluates the conversational quality of every agent message produced during Wave 1.
+  Scores each dimension, flags tone issues, and produces the experience report.
 ```
 
 ### Failure category vocabulary (used by all test subagents)
@@ -207,147 +195,78 @@ Every `failure_queue` entry must include a `category` field. The triage in Phase
 
 | Category value | Routes to fix subagent |
 |----------------|----------------------|
-| `api` | 5A — API & Agent |
-| `agent` | 5A — API & Agent |
-| `agent-response` | 5A — API & Agent (prompt/tone issues) |
-| `ui` | 5B — UI & Frontend |
-| `frontend` | 5B — UI & Frontend |
-| `infrastructure` | 5C — Infrastructure & DB |
-| `data` | 5C — Infrastructure & DB |
+| `ui` | 3B — UI & Frontend |
+| `frontend` | 3B — UI & Frontend |
+| `api` | 3A — API & Agent |
+| `agent` | 3A — API & Agent |
+| `agent-response` | 3A — API & Agent (prompt/tone issues) |
+| `infrastructure` | 3C — Infrastructure & DB |
+| `data` | 3C — Infrastructure & DB |
 
-### Subagent 1 — API Happy Path
-
-**Type:** `generalPurpose`
-
-**Prompt to subagent:**
-
-```
-You are testing the Social Support Application API end-to-end with real LLM requests.
-
-Context:
-- Base URL: http://localhost:8000/api/v1
-- Emirates ID: {emirates_id}
-- Profile directory: {profile_path}
-- Required documents in profile: emirates_id_front.png, emirates_id_back.png, bank_statement.pdf, credit_report.pdf, resume.docx, assets_liabilities.xlsx, application_form.png
-
-IMPORTANT: You are a READ-ONLY tester. Do NOT attempt to fix any failures you encounter. Record every failure in detail and report it in the failure_queue. A separate fix subagent will handle repairs.
-
-Search Rule: Before recording a failure diagnosis, run a web search for the exact error message plus the library name and year (2026). This applies to LangGraph interrupt/resume issues, FastAPI multipart handling, phase transition bugs, and any unfamiliar stack trace. Your search-informed diagnosis helps the fix subagent work faster. Do not attempt a fix yourself.
-
-Test the following steps sequentially. For each step, record:
-- The exact request made (endpoint, method, body summary)
-- The response (status code, key fields)
-- Latency (time from request to response)
-- Whether the step passed or failed, and why
-
-Steps:
-1. Auth — POST /auth/login with the Emirates ID. Assert 200, application_id present, current_phase in (authentication, intake).
-2. Intake — POST /applications/{application_id}/chat with a message containing full personal details AND a support_category keyword (divorced/abandoned/unknown_parentage/health_disability). Assert phase advances to document_collection. If interrupt returned, answer the follow-up questions and re-send until phase advances.
-3. Document Upload — POST /applications/{application_id}/chat as multipart with all documents from the profile directory. Assert every document is classified correctly (no "unknown" doc_type). Assert files are saved under data/uploads/{application_id}/.
-   - Note: You can also use the dedicated endpoint POST /applications/{application_id}/documents with a single file per request.
-4. Processing — Poll GET /applications/{application_id} every 3 seconds (max 90 seconds) until current_phase is no longer "processing". Record the final phase and total processing time.
-   - Alternative: Use the SSE streaming endpoint POST /applications/{application_id}/chat/stream to observe phase transitions in real time.
-5. Review (if phase is "review") — Read the interrupt.discrepancies or interrupt.missing_documents. Send a clarifying chat message addressing each point. Assert phase eventually advances to "decision".
-6. Decision — Assert the application has a decision field in (approved, manual_review, soft_decline). Assert eligibility_score is a number between 0 and 1.
-7. Enablement — POST a chat message like "What support am I eligible for?" while in enablement phase. Assert the response contains personalized recommendations.
-
-Return a structured report:
-- Per-step: step name, passed (bool), latency_ms, response_summary, failure_reason (if any)
-- Overall: total_end_to_end_latency_ms, decision, eligibility_score
-- All raw chat messages from the agent (so Subagent 4 can evaluate them)
-- failure_queue: list of {step, symptom, error_message, stack_trace (if any), category — one of: api, agent, infrastructure, data, search_results_summary}
-```
-
-### Subagent 2 — UI Browser Flow
+### Subagent 1 — UI Browser Flow (Primary Test Driver)
 
 **Type:** `browser-use`
 
 **Prompt to subagent:**
 
 ```
-You are testing the Social Support Application Streamlit UI in a real browser.
+You are testing the Social Support Application as a real applicant would — through the Streamlit UI, from landing page to enablement. Your job is to experience the product end-to-end and report everything that breaks, confuses, or degrades the user experience.
 
 Context:
 - Frontend URL: http://localhost:8501
 - Emirates ID: {emirates_id}
 - Profile directory with documents: {profile_path}
-- This is a FRESH account generated independently from the API test account. Drive the application forward from authentication through enablement as a real applicant would.
+- Required documents in profile: emirates_id_front.png, emirates_id_back.png, bank_statement.pdf, credit_report.pdf, resume.docx, assets_liabilities.xlsx, application_form.png
+- This is a FRESH account. Drive the application forward from authentication through enablement exactly as a real applicant would.
 
-IMPORTANT: You are a READ-ONLY tester. Do NOT attempt to fix any UI failures you encounter. Record every failure in detail and report it in the failure_queue. A separate fix subagent will handle repairs.
+IMPORTANT: You are a READ-ONLY tester. Do NOT attempt to fix any failures you encounter. Record every failure in detail and report it in the failure_queue. A separate fix subagent will handle repairs — and those fixes can touch ANY layer (UI, API, agent, infrastructure). Your job is to find the problems from the user's perspective.
 
-Search Rule: If any UI component behaves unexpectedly (phase tracker not updating, decision card not rendering, file upload not triggering, chat messages not appearing), search for the current Streamlit API patterns before recording a diagnosis. Include "Streamlit" and the year (2026) in your search. Specifically search for st.fragment, st.navigation, and component re-render issues if the UI seems stuck or unresponsive. Your search-informed diagnosis helps the fix subagent work faster. Do not attempt a fix yourself.
+Search Rule: If any UI component behaves unexpectedly (phase tracker not updating, decision card not rendering, file upload not triggering, chat messages not appearing, agent giving confusing responses), search for the current library API patterns before recording a diagnosis. Include the relevant library name (Streamlit, LangGraph, FastAPI) and the year (2026) in your search. Your search-informed diagnosis helps the fix subagent work faster. Do not attempt a fix yourself.
 
 Navigate the UI as a real applicant would. For each action, record:
 - What you did (clicked, typed, uploaded)
-- What you observed on screen (text, component state)
+- What you observed on screen (text, component state, agent message)
 - Whether the UI responded correctly
 - Any errors, loading spinners that never complete, or missing components
+- The full text of every agent message (so Subagent 2 can evaluate tone and clarity)
 
 Steps:
-1. Land on the landing page. Verify the Emirates ID input and "Start Application" button are visible.
-2. Enter the Emirates ID and click Start Application. Verify navigation to the chat page.
-3. In the chat, send your personal information including a support category. Verify the agent responds with acknowledgment and either asks follow-up questions or advances to document collection.
-4. Use the chat file attachment to upload all documents from the profile directory. Verify the phase tracker component updates to show documents were received.
-5. Wait for processing to complete. Watch the phase tracker transition through processing → review/decision.
-6. If in review, answer clarification questions in chat. If in decision, verify a decision card is displayed with the outcome and eligibility score.
-7. Continue to enablement. Verify personalized recommendations are shown.
+1. Land on the landing page. Verify the Emirates ID input and "Start Application" button are visible and usable.
+2. Enter the Emirates ID and click Start Application. Verify navigation to the chat page. Note any delays or errors.
+3. In the chat, send your personal information including a support category (e.g., "I am divorced and seeking financial support"). Verify the agent responds with acknowledgment and either asks follow-up questions or advances to document collection. Record the agent's exact words.
+4. Use the chat file attachment to upload all documents from the profile directory. Verify the phase tracker component updates to show documents were received. Note if any document is misclassified or rejected.
+5. Wait for processing to complete. Watch the phase tracker transition through processing → review/decision. Record the total wait time and any agent messages during processing.
+6. If in review, answer clarification questions in chat. Record the agent's questions and your responses. Verify phase eventually advances to "decision".
+7. If in decision, verify a decision card is displayed with the outcome and eligibility score. Record the decision explanation word-for-word.
+8. Continue to enablement. Verify personalized recommendations are shown. Record the recommendations.
+
+Also test these edge scenarios naturally within the flow (do not break character as a real applicant):
+- After auth + intake, stop and re-auth with the same Emirates ID. Verify session recovery works (same application_id, prior messages restored).
+- Upload a wrong file type (a plain .txt file named "notes.txt"). Verify it is handled gracefully — either classified as "unknown" with a clear message, or rejected with a helpful error. Must NOT crash the server.
+- Send a vague or incomplete message (e.g., "I need help" with no details). Verify the agent asks clarifying questions rather than crashing or giving a generic response.
 
 Also note:
 - Any UI elements that are broken, missing, or unresponsive
 - Whether the phase tracker accurately reflects the current phase
 - Whether decision cards are readable and well-formatted
+- Whether the agent's tone feels appropriate for someone seeking government support
 - Any console errors visible in the browser
+- Total time from landing page to enablement
 
 Return a structured report:
-- Per-step: step, passed (bool), observation, failure_detail (if any)
+- Per-step: step, passed (bool), observation, failure_detail (if any), agent_message (full text)
+- Edge scenarios: scenario, passed (bool), response_summary, graceful (bool)
 - Screenshots of key states (landing, chat mid-flow, decision card, enablement)
-- All agent messages displayed in the chat (for Subagent 4)
-- failure_queue: list of {step, symptom, error_message, console_error (if any), category — one of: ui or frontend, search_results_summary}
+- ALL agent messages displayed in the chat (for Subagent 2)
+- failure_queue: list of {step_or_scenario, symptom, error_message, console_error (if any), category — one of: ui, frontend, api, agent, agent-response, infrastructure, data, search_results_summary}
+- total_end_to_end_time_ms
 ```
 
-### Subagent 3 — Edge Cases & Error Paths
+### Subagent 2 — Agent Experience Audit
 
 **Type:** `generalPurpose`
 
-**Prerequisite:** Wave 1 (Subagents 1 and 2) must complete first so you understand what "normal" looks like.
-
-**Prompt to subagent:**
-
-```
-You are testing edge cases and error paths in the Social Support Application API.
-
-Context:
-- Base URL: http://localhost:8000/api/v1
-- Fresh Emirates ID for a new account: generate one using the project's luhn_check_digit utility
-- A second fresh Emirates ID for concurrency testing
-
-IMPORTANT: You are a READ-ONLY tester. Do NOT attempt to fix any failures you encounter. Record every failure in detail and report it in the failure_queue. A separate fix subagent will handle repairs.
-
-Search Rule: Before recording a diagnosis for any unexpected response (wrong status code, missing error message, state leakage between applications), search for the exact error or behaviour plus the relevant library name (FastAPI, LangGraph, asyncpg) and year (2026). Your search-informed diagnosis helps the fix subagent work faster. Do not attempt a fix yourself.
-
-Prerequisite: Wave 1 (Subagents 1 and 2) must complete first so you understand what "normal" looks like.
-
-Test the following scenarios. For each, record the request, response status, response body, and whether the behaviour was graceful (no 500, no unhandled exception, appropriate error message).
-
-Scenarios:
-1. Invalid Emirates ID — Use an ID that fails Luhn checksum (e.g., 784-1990-0000000-0 with wrong check digit). Assert 400 with "Invalid Emirates ID format or checksum".
-2. Partial intake — Auth, then send an intake message missing critical fields (no date_of_birth, no support_category). Assert the agent responds with an interrupt asking for the missing fields, and phase stays at "intake".
-3. Missing documents — Upload only emirates_id_front.png (1 of 7 required docs). Assert the agent lists the remaining required documents and phase stays at "document_collection".
-4. Session recovery — Complete auth and intake for an account, then stop. Re-auth with the same Emirates ID. Assert is_new_applicant=false, application_id is the same, and state_snapshot is non-null and contains the previously captured messages.
-5. Document re-upload — In the review phase, upload a corrected document. Assert the graph re-runs processing and validation for that document.
-6. Wrong file type — Upload a plain .txt file named "notes.txt". Assert it is either classified as "unknown" with a graceful message, or rejected with a clear error. Must NOT crash the server.
-7. Concurrent applications — Auth two different Emirates IDs to get application_id_A and application_id_B. Send a chat to A, then immediately a chat to B, then check both applications' states. Assert messages and state are isolated (no cross-contamination).
-
-Return a structured report:
-- Per-scenario: scenario name, passed (bool), status_code, response_summary, graceful (bool), failure_detail (if any)
-- failure_queue: list of {scenario, symptom, error_message, stack_trace (if any), category — one of: api, agent, infrastructure, data, search_results_summary}
-```
-
-### Subagent 4 — Agent Experience Audit
-
-**Type:** `generalPurpose`
-
-**Prerequisite:** Wave 1 (Subagents 1 and 2) and Subagent 3 must complete so you have message logs to evaluate.
+**Prerequisite:** Subagent 1 must complete so you have message logs to evaluate.
 
 **Prompt to subagent:**
 
@@ -361,7 +280,7 @@ IMPORTANT: You are a READ-ONLY auditor. Do NOT attempt to fix any prompt or tone
 
 Search Rule: If you encounter agent messages that seem confusing, jargon-heavy, or tone-deaf and you are unsure whether this is a known issue or a prompt engineering problem, search for current best practices on conversational AI tone for government services, or LangGraph agent prompt design patterns (include year 2026). Your search-informed diagnosis helps the fix subagent work faster. Do not attempt a fix yourself.
 
-You will receive message logs from the API tests, browser tests, and edge case tests. Evaluate each dimension on a 1-5 scale:
+You will receive the full message log from Subagent 1's UI browser flow test. Evaluate each dimension on a 1-5 scale:
 
 1 = Poor: confusing, rude, or unhelpful
 2 = Below average: partially helpful but unclear or incomplete
@@ -398,7 +317,7 @@ Return a structured report:
 
 ## Phase 4: Fix-and-Iterate Orchestration
 
-After Subagents 1–4 report, the main agent runs the following orchestration loop. **Testing subagents never fix; fix subagents never test.** Context stays isolated at every step.
+After Subagents 1–2 report, the main agent runs the following orchestration loop. **Testing subagents never fix; fix subagents never test.** Context stays isolated at every step.
 
 ### 4.1 — Orchestration Loop
 
@@ -406,31 +325,28 @@ The main agent executes steps 1–8 in order. If step 8 triggers an iteration, r
 
 ```
 1. COLLECT
-   - Gather failure_queue from Subagents 1, 2, 3, and 4 via the Task tool's return value.
+   - Gather failure_queue from Subagents 1 and 2 via the Task tool's return value.
    - Each test subagent returns a structured report with a failure_queue field.
    - If all queues are empty, skip to Phase 5 (success criteria).
 
 2. DEDUPLICATE
-   - Merge entries with the same root symptom (e.g., the same LangGraph interrupt bug reported by both Subagent 1 and Subagent 2).
+   - Merge entries with the same root symptom (e.g., the same LangGraph interrupt bug reported as both a UI issue and an agent issue).
    - Keep one representative entry per unique root cause; note all subagents that observed it.
 
 3. TRIAGE — route each unique failure by its category field:
-   - category in {api, agent} → Fix Subagent 5A
-   - category = agent-response → Fix Subagent 5A (prompt/tone issues)
-   - category in {ui, frontend} → Fix Subagent 5B
-   - category in {infrastructure, data} → Fix Subagent 5C
+   - category in {ui, frontend} → Fix Subagent 3B
+   - category in {api, agent} → Fix Subagent 3A
+   - category = agent-response → Fix Subagent 3A (prompt/tone issues)
+   - category in {infrastructure, data} → Fix Subagent 3C
 
 4. DISPATCH — launch fix subagents in parallel via the Task tool, one per non-empty category.
    Pass the deduplicated failure_queue entries as the {failure_queue_entries_from_triage} placeholder.
 
 5. WAIT — for all fix subagents to complete and report.
 
-6. RE-RUN — launch only the test subagent(s) whose domain was affected. Subagent 1 (API) and Subagent 3 (edge cases) use different accounts and can run in parallel:
-   - If 5A fixed anything → re-run Subagent 1 (API)
-   - If 5A fixed prompt/tone issues (agent-response) → also re-run Subagent 2 (UI) to verify chat messages improved
-   - If 5B fixed anything → re-run Subagent 2 (UI)
-   - If 5C fixed anything → re-run Subagent 1 (API) and Subagent 3 (edge cases) in parallel — infrastructure bugs affect all layers
-   - Use the same emirates_id and profile_path from the original run (each subagent uses its own account).
+6. RE-RUN — launch Subagent 1 (UI Browser Flow) again to verify fixes. Use the same emirates_id and profile_path from the original run.
+   - If 3A fixed prompt/tone issues (agent-response), also launch Subagent 2 (Experience Audit) to verify chat messages improved.
+   - If 3C fixed infrastructure, re-run Subagent 1 — infrastructure bugs affect the full user journey.
 
 7. RECORD — for each fix:
    - Log the bug in docs/live-testing-tracker.md under "Bugs Found" (severity, step, symptom, root cause)
@@ -440,7 +356,7 @@ The main agent executes steps 1–8 in order. If step 8 triggers an iteration, r
    Abort if three consecutive fix-and-retest cycles fail on the same step.
 ```
 
-### 4.2 — Fix Subagent 5A: API & Agent Bugs
+### 4.2 — Fix Subagent 3A: API & Agent Bugs
 
 **Type:** `generalPurpose`
 
@@ -449,7 +365,7 @@ The main agent executes steps 1–8 in order. If step 8 triggers an iteration, r
 **Prompt to subagent:**
 
 ```
-You are fixing API and agent-layer bugs in the Social Support Application.
+You are fixing bugs in the Social Support Application that affect the end-user experience. These bugs were discovered through UI-driven testing but may live in any backend layer.
 
 Context:
 - Backend runs on http://localhost:8000 (FastAPI + LangGraph agents)
@@ -494,7 +410,7 @@ Return a structured report for each failure:
 - failure_id, root_cause, files_changed, fix_summary, unit_test_result, commit_hash
 ```
 
-### 4.3 — Fix Subagent 5B: UI & Frontend Bugs
+### 4.3 — Fix Subagent 3B: UI & Frontend Bugs
 
 **Type:** `generalPurpose`
 
@@ -547,7 +463,7 @@ Return a structured report for each failure:
 - failure_id, root_cause, files_changed, fix_summary, unit_test_result, commit_hash
 ```
 
-### 4.4 — Fix Subagent 5C: Infrastructure & Database Bugs
+### 4.4 — Fix Subagent 3C: Infrastructure & Database Bugs
 
 **Type:** `generalPurpose`
 
@@ -612,12 +528,10 @@ Return a structured report for each failure:
 All of the following must be true before declaring done:
 
 - [ ] **Preflight** — All infrastructure, app, and DB checks passed.
-- [ ] **API Happy Path** — All 7 steps passed with real LLM requests. Total end-to-end latency under 5 minutes.
-- [ ] **UI Browser Flow** — All 7 steps completed in the browser with no broken or unresponsive UI elements.
-- [ ] **Edge Cases** — All 7 edge case scenarios handled gracefully (no 500s, no crashes, appropriate responses).
-- [ ] **Session Recovery** — Re-auth restores `application_id` and `state_snapshot` correctly.
+- [ ] **UI Browser Flow** — All 8 steps completed in the browser with no broken or unresponsive UI elements. A real applicant could complete the full journey without assistance.
+- [ ] **Edge Scenarios** — Session recovery, wrong file type, and vague message scenarios all handled gracefully (no 500s, no crashes, appropriate responses).
 - [ ] **Agent Experience** — Overall score >= 3.5/5. No dimension scored below 2. No rude or confusing messages flagged.
-- [ ] **Decision Rendered** — Decision card displays with outcome and eligibility score.
+- [ ] **Decision Rendered** — Decision card displays with outcome and eligibility score, visible in the UI.
 - [ ] **Enablement** — Personalized recommendations displayed and contextually relevant.
 - [ ] **PII Safety** — No Emirates ID numbers, names, or phone numbers appear in backend logs.
 - [ ] **Tracker Complete** — All sections of `docs/live-testing-tracker.md` filled in.

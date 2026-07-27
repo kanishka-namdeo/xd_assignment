@@ -106,7 +106,11 @@ async def enablement_node(state: ApplicantState) -> ApplicantState:
     if user_response and isinstance(user_response, str) and len(user_response.strip()) > 0:
         # User has a follow-up question - generate a personalized response using LLM
         support_category = applicant_info.get("support_category", "general")
-        family_size = applicant_info.get("family_size", 1)
+        family_size_raw = applicant_info.get("family_size", 1)
+        try:
+            family_size = int(family_size_raw)
+        except (ValueError, TypeError):
+            family_size = 1
         housing_status = applicant_info.get("housing_status", "unknown")
         employment_status = applicant_info.get("employment_status", "unknown")
 
