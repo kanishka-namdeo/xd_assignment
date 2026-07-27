@@ -60,6 +60,63 @@ async def login(client: httpx.AsyncClient, emirates_id: str, verbose: bool = Fal
     return data
 
 
+async def status(client: httpx.AsyncClient, app_id: str, verbose: bool = False) -> dict:
+    """GET /applications/{id} — returns current phase, decision, score."""
+    start = time.perf_counter()
+    if verbose:
+        log_verbose("status", application_id=app_id)
+    resp = await client.get(f"{BASE_URL}/applications/{app_id}")
+    latency = (time.perf_counter() - start) * 1000
+    if resp.status_code != 200:
+        if verbose:
+            log_verbose("status_failed", status=resp.status_code, error=resp.text[:200])
+        output("status", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
+        return {}
+    data = resp.json()
+    if verbose:
+        log_verbose("status_ok", phase=data.get("current_phase"), decision=data.get("decision"))
+    output("status", True, data=data, latency_ms=latency)
+    return data
+
+
+def generate_account(seed: int | None = None, output_dir: str | None = None, verbose: bool = False) -> dict:
+    """Subprocess generate_fresh_account.py and parse output."""
+    start = time.perf_counter()
+    cmd = [sys.executable, "scripts/generate_fresh_account.py"]
+    if seed is not None:
+        cmd.extend(["--seed", str(seed)])
+    if output_dir is not None:
+        cmd.extend(["--output-dir", output_dir])
+
+    if verbose:
+        log_verbose("generate_account", cmd=" ".join(cmd))
+
+    import subprocess
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    latency = (time.perf_counter() - start) * 1000
+
+    if result.returncode != 0:
+        if verbose:
+            log_verbose("generate_account_failed", stderr=result.stderr[:200])
+        output("generate-account", False, error=result.stderr[:200], latency_ms=latency)
+        return {}
+
+    # Parse "FRESH ACCOUNT READY" block from stdout
+    emirates_id = None
+    profile_path = None
+    for line in result.stdout.splitlines():
+        if "Emirates ID:" in line:
+            emirates_id = line.split("Emirates ID:")[1].strip()
+        if "Profile:" in line:
+            profile_path = Path(line.split("Profile:")[1].strip())
+
+    data = {"emirates_id": emirates_id, "profile_path": str(profile_path) if profile_path else None}
+    if verbose:
+        log_verbose("generate_account_ok", emirates_id=emirates_id, profile_path=profile_path)
+    output("generate-account", True, data=data, latency_ms=latency)
+    return data
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Social Support Application API client")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print progress to stderr")
@@ -68,6 +125,16 @@ def build_parser() -> argparse.ArgumentParser:
     # login
     p = sub.add_parser("login", help="Authenticate with Emirates ID")
     p.add_argument("--emirates-id", required=True, help="Emirates ID number")
+
+    # status
+    p = sub.add_parser("status", help="Get application status")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+
+    # generate-account
+    p = sub.add_parser("generate-account", help="Generate a fresh test account")
+    p.add_argument("--seed", type=int, help="Random seed for reproducibility")
+    p.add_argument("--output-dir", help="Output directory")
+
     return parser
 
 
@@ -79,6 +146,11 @@ async def main() -> int:
     async with httpx.AsyncClient(timeout=120.0) as client:
         if args.command == "login":
             await login(client, args.emirates_id, verbose)
+        elif args.command == "status":
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                await status(client, args.app_id, verbose)
+        elif args.command == "generate-account":
+            generate_account(args.seed, args.output_dir, verbose)
     return 0
 
 
