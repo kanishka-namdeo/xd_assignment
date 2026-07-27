@@ -89,7 +89,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ### Solution Summary Document
 
-Agents MUST create and maintain `docs/solution-summary.md` as a durable artifact of the project. Update it whenever a change affects architecture, tool choices, component boundaries, integration points, or the overall solution design.
+Agents MUST create and maintain `SOLUTION_SUMMARY.md` at the repository root as a durable artifact of the project. Update it whenever a change affects architecture, tool choices, component boundaries, integration points, or the overall solution design.
 
 The document is capped at 10 pages and must contain:
 
