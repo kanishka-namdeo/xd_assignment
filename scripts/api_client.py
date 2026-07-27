@@ -190,6 +190,67 @@ async def intake(client: httpx.AsyncClient, app_id: str, profile_dir: str, max_l
     return {}
 
 
+async def upload_docs(client: httpx.AsyncClient, app_id: str, profile_dir: str, verbose: bool = False) -> dict:
+    """Upload all documents from a profile directory via multipart form-data."""
+    profile_path = Path(profile_dir)
+    if not profile_path.exists():
+        output("upload-docs", False, error=f"Profile directory not found: {profile_dir}")
+        return {}
+
+    # Discover document files
+    doc_extensions = {".png", ".jpg", ".jpeg", ".pdf", ".docx", ".xlsx"}
+    files = []
+    for fpath in sorted(profile_path.iterdir()):
+        if fpath.suffix.lower() in doc_extensions:
+            mime = _guess_mime(fpath)
+            files.append(("files", (fpath.name, open(fpath, "rb"), mime)))
+            if verbose:
+                log_verbose("upload_doc_queued", filename=fpath.name, mime=mime)
+
+    if not files:
+        output("upload-docs", False, error="No document files found in profile directory")
+        return {}
+
+    start = time.perf_counter()
+    if verbose:
+        log_verbose("upload_docs", app_id=app_id, file_count=len(files))
+
+    resp = await client.post(
+        f"{BASE_URL}/applications/{app_id}/chat",
+        data={"text": "Here are my supporting documents."},
+        files=files,
+    )
+    latency = (time.perf_counter() - start) * 1000
+
+    # Close file handles
+    for _, (_, _, f) in files:
+        f.close()
+
+    if resp.status_code != 200:
+        if verbose:
+            log_verbose("upload_docs_failed", status=resp.status_code, error=resp.text[:200])
+        output("upload-docs", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
+        return {}
+
+    data = resp.json()
+    if verbose:
+        log_verbose("upload_docs_ok", phase=data.get("phase"), docs=len(data.get("uploaded_documents", [])))
+    output("upload-docs", True, data=data, latency_ms=latency)
+    return data
+
+
+def _guess_mime(path: Path) -> str:
+    suffix = path.suffix.lower()
+    return {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }.get(suffix, "application/octet-stream")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Social Support Application API client")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print progress to stderr")
@@ -214,6 +275,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--profile-dir", required=True, help="Path to profile directory")
     p.add_argument("--max-loops", type=int, default=5, help="Max interrupt resolution attempts")
 
+    # upload-docs
+    p = sub.add_parser("upload-docs", help="Upload all documents from a profile directory")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+    p.add_argument("--profile-dir", required=True, help="Path to profile directory")
+
     return parser
 
 
@@ -233,6 +299,9 @@ async def main() -> int:
         elif args.command == "intake":
             async with httpx.AsyncClient(timeout=120.0) as client:
                 await intake(client, args.app_id, args.profile_dir, args.max_loops, verbose)
+        elif args.command == "upload-docs":
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                await upload_docs(client, args.app_id, args.profile_dir, verbose)
     return 0
 
 
