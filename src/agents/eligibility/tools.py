@@ -219,6 +219,7 @@ def ml_model_predict_tool(applicant_features: dict[str, Any]) -> dict[str, Any]:
                 "predicted_class": predicted_class,
                 "method": "ml_model",
                 "factor_contributions": {},
+                "duration_ms": round(duration_ms, 2),
             }
         except Exception as e:
             logger.warning("ml_prediction_failed", error=str(e), fallback="rule_based")
@@ -232,6 +233,7 @@ def ml_model_predict_tool(applicant_features: dict[str, Any]) -> dict[str, Any]:
         probability=result["probability"],
         duration_ms=round(duration_ms, 2),
     )
+    result["duration_ms"] = round(duration_ms, 2)
     return result
 
 
@@ -289,7 +291,7 @@ def feature_importance_tool(
                 top_feature=top_features[0]["feature"] if top_features else None,
                 duration_ms=round(duration_ms, 2),
             )
-            return {"top_features": top_features, "method": method}
+            return {"top_features": top_features, "method": method, "duration_ms": round(duration_ms, 2)}
 
         except Exception as e:
             logger.warning("feature_importance_ml_failed", error=str(e), fallback="rule_based")
@@ -310,7 +312,7 @@ def feature_importance_tool(
         top_feature=top_features[0]["feature"] if top_features else None,
         duration_ms=round(duration_ms, 2),
     )
-    return {"top_features": top_features, "method": "rule_based_factors"}
+    return {"top_features": top_features, "method": "rule_based_factors", "duration_ms": round(duration_ms, 2)}
 
 
 @tool
@@ -379,6 +381,7 @@ def adjust_factor_weighting_tool(
         "adjusted_score": adjusted_score,
         "adjustment_amount": adjustment,
         "reasoning": "; ".join(reasons) if reasons else "No contextual adjustments needed.",
+        "duration_ms": round(duration_ms, 2),
     }
 
 
@@ -475,4 +478,5 @@ def eligibility_explanation_tool(
         "explanation": explanation,
         "key_factors": key_factors,
         "recommendation": recommendation,
+        "duration_ms": round(duration_ms, 2),
     }
