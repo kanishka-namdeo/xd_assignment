@@ -86,8 +86,26 @@ class ChatService:
             has_interrupt=had_pending_interrupt,
         )
 
-        # Invoke orchestrator
-        result = await run_orchestrator(graph_input, langfuse_client=langfuse_client)
+        # Invoke orchestrator with exception safety
+        try:
+            result = await run_orchestrator(graph_input, langfuse_client=langfuse_client)
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_ms) * 1000
+            logger.exception(
+                "orchestrator_invocation_failed",
+                application_id=application_id,
+                phase=application.current_phase,
+                error=str(e),
+                duration_ms=round(duration_ms, 2),
+            )
+            return ChatResponse(
+                message="An error occurred while processing your request. Please try again. If the problem persists, contact support.",
+                phase=previous_phase,
+                uploaded_documents=[],
+                decision=None,
+                decision_card=None,
+                interrupt=None,
+            )
 
         # DEBUG: Log what the graph returned
         logger.info(

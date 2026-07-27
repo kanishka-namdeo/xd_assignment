@@ -99,16 +99,33 @@ async def chat(
         logger.info("file_upload_complete", application_id=application_id, files_saved=len(file_paths))
 
     logger.info("chat_service_invoke", application_id=application_id, file_count=len(file_paths))
-    response = await chat_service.handle_chat(
-        application_id=application_id,
-        text=text,
-        file_paths=file_paths,
-        langfuse_client=langfuse_client,
-    )
-    
+    try:
+        response = await chat_service.handle_chat(
+            application_id=application_id,
+            text=text,
+            file_paths=file_paths,
+            langfuse_client=langfuse_client,
+        )
+    except Exception as e:
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.exception(
+            "chat_endpoint_error",
+            application_id=application_id,
+            error=str(e),
+            elapsed_ms=round(elapsed, 2),
+        )
+        return ChatResponse(
+            message="An unexpected error occurred. Please try again.",
+            phase="document_collection",
+            uploaded_documents=[],
+            decision=None,
+            decision_card=None,
+            interrupt=None,
+        )
+
     elapsed = (time.perf_counter() - start_time) * 1000
     logger.info("chat_service_complete", application_id=application_id, elapsed_ms=elapsed)
-    
+
     return response
 
 
