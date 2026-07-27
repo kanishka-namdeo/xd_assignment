@@ -7,7 +7,7 @@ import structlog
 from langfuse import observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.parsers import parse_by_document_type
+from src.domain.constants.document_types import DEFAULT_REQUIRED_DOCUMENTS, REQUIRED_DOCUMENTS
 from src.infrastructure.db.repositories.document_repo import DocumentRepository
 from src.infrastructure.document_processing.ocr import OCREngine
 from src.infrastructure.document_processing.pdf_parser import PDFParser
@@ -29,15 +29,6 @@ from src.infrastructure.extraction_persistence import (
 from src.services.extraction_pipeline import run_extraction_pipeline
 
 logger = structlog.get_logger(__name__)
-
-REQUIRED_DOCUMENTS = {
-    "divorced": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-    "abandoned": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-    "unknown_parentage": ["emirates_id", "bank_statement", "application_form"],
-    "health_disability": ["emirates_id", "bank_statement", "credit_report", "application_form", "resume"],
-}
-
-DEFAULT_REQUIRED_DOCUMENTS = ["emirates_id", "bank_statement", "credit_report", "application_form"]
 
 
 class ExtractionService:

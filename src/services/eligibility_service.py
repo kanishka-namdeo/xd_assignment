@@ -1,13 +1,13 @@
 """Eligibility service - compute eligibility scores using rule-based scoring."""
 
 from datetime import datetime, timezone
-from decimal import Decimal
 from uuid import UUID
 
 import structlog
 from langfuse import observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.domain.constants.eligibility_rules import CATEGORY_ADJUSTMENTS
 from src.infrastructure.db.repositories.application_repo import ApplicationRepository
 from src.infrastructure.db.repositories.document_repo import DocumentRepository
 from src.infrastructure.db.repositories.extraction_repo import (
@@ -20,15 +20,6 @@ from src.infrastructure.db.repositories.extraction_repo import (
 )
 
 logger = structlog.get_logger(__name__)
-
-
-# Support category score adjustments
-CATEGORY_ADJUSTMENTS = {
-    "divorced": 0.10,
-    "abandoned": 0.15,
-    "unknown_parentage": 0.12,
-    "health_disability": 0.08,
-}
 
 
 class EligibilityService:
@@ -439,7 +430,7 @@ class EligibilityService:
 
         # Employment stability
         employment_months = features.get("employment_stability_months", 0)
-        if employment_months >= 36:
+        if employment_months >= 24:
             score += 0.10
             factors["stable_employment"] = 0.10
         elif employment_months >= 12:
