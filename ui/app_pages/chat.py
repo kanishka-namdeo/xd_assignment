@@ -5,6 +5,7 @@ import structlog
 
 from ui.components.chat_input import render_chat_input
 from ui.components.document_status import (
+    render_document_progress,
     render_document_status,
     render_document_summary,
 )
@@ -84,6 +85,7 @@ def _render_sidebar() -> None:
         # Get support category from applicant info for dynamic document requirements
         applicant_info = st.session_state.get("applicant_info", {})
         support_category = applicant_info.get("support_category") if isinstance(applicant_info, dict) else None
+        render_document_progress(support_category=support_category)
         render_document_status(
             st.session_state.get("uploaded_documents"),
             support_category=support_category,

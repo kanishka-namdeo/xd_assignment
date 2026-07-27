@@ -18,6 +18,7 @@ STATUS_ICONS: dict[str, str] = {
 }
 
 # Document requirements by support category (matches spec)
+# TODO: Replace with centralized constants from src.domain.constants.document_types once populated
 REQUIRED_DOCS_BY_CATEGORY: dict[str, list[str]] = {
     "divorced": ["emirates_id", "bank_statement", "credit_report", "application_form"],
     "abandoned": ["emirates_id", "bank_statement", "credit_report", "application_form"],
@@ -27,6 +28,19 @@ REQUIRED_DOCS_BY_CATEGORY: dict[str, list[str]] = {
 
 # Default required docs if category is unknown
 DEFAULT_REQUIRED_DOCS: list[str] = ["emirates_id", "bank_statement", "credit_report", "application_form"]
+
+try:
+    from src.domain.constants.document_types import (
+        DEFAULT_REQUIRED_DOCS as _central_default,
+        REQUIRED_DOCUMENTS as _central_required,
+    )
+
+    if _central_required:
+        REQUIRED_DOCS_BY_CATEGORY = _central_required
+    if _central_default:
+        DEFAULT_REQUIRED_DOCS = _central_default
+except ImportError:
+    pass
 
 # Display names for document types
 DOC_DISPLAY_NAMES: dict[str, str] = {
@@ -44,6 +58,22 @@ def get_required_docs_for_category(support_category: str | None) -> list[str]:
     if support_category:
         return REQUIRED_DOCS_BY_CATEGORY.get(support_category, DEFAULT_REQUIRED_DOCS)
     return DEFAULT_REQUIRED_DOCS
+
+
+def render_document_progress(support_category: str | None = None) -> None:
+    """Render a progress bar showing document upload completion."""
+    uploaded = st.session_state.get("uploaded_documents", {}) or {}
+    required = get_required_docs_for_category(support_category)
+
+    uploaded_count = len([doc for doc in required if doc in uploaded])
+    total_count = len(required)
+    progress = uploaded_count / total_count if total_count > 0 else 0
+
+    st.markdown(f"**Documents:** {uploaded_count} of {total_count} uploaded")
+    st.progress(progress)
+
+    if uploaded_count == total_count and total_count > 0:
+        st.success("All required documents uploaded!")
 
 
 def render_document_status(
