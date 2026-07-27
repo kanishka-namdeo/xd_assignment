@@ -49,6 +49,7 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
         config: dict[str, Any] = {
             "configurable": {
                 "thread_id": thread_id,
+                "recursion_limit": 50,
             },
             "callbacks": callbacks if callbacks else None,
             "metadata": {

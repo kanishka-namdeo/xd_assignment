@@ -33,7 +33,7 @@ async def decision_node(state: "ApplicantState") -> "ApplicantState":
         from src.agents.eligibility.graph import get_eligibility_graph
 
         eligibility_graph = get_eligibility_graph()
-        config = {"configurable": {"thread_id": f"{application_id}_eligibility"}}
+        config = {"configurable": {"thread_id": f"{application_id}_eligibility", "recursion_limit": 10}}
         eligibility_result = await eligibility_graph.ainvoke(state, config=config)
         eligibility_score = eligibility_result.get("eligibility_score", 0.5)
         eligibility_factors = eligibility_result.get("eligibility_factors", {})
@@ -69,10 +69,12 @@ async def decision_node(state: "ApplicantState") -> "ApplicantState":
 
     # Invoke decision agent subgraph
     try:
-        from src.agents.decision.graph import decision_agent
+        from src.agents.decision.graph import get_decision_agent
+
+        decision_agent = get_decision_agent()
 
         decision_state = {**state, "eligibility_score": eligibility_score, "eligibility_factors": eligibility_factors}
-        config = {"configurable": {"thread_id": f"{application_id}_decision"}}
+        config = {"configurable": {"thread_id": f"{application_id}_decision", "recursion_limit": 10}}
         decision_result = await decision_agent.ainvoke(decision_state, config=config)
         decision = decision_result.get("decision", "manual_review")
         decision_explanation = decision_result.get("decision_explanation", decision_explanation)
@@ -100,10 +102,26 @@ async def decision_node(state: "ApplicantState") -> "ApplicantState":
             decision_explanation = f"Application declined with eligibility score {eligibility_score:.0%}."
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
-    logger.info("node_exit", node="decision", duration_ms=round(duration_ms, 2), decision=decision, eligibility_score=eligibility_score)
+    validation_confidence = state.get("validation_confidence")
+    if validation_confidence is None:
+        validation_confidence = state.get("validation_results", {}).get("overall_confidence")
+    if validation_confidence is None:
+        validation_confidence = 0.0
+    logger.info(
+        "node_exit",
+        node="decision",
+        duration_ms=round(duration_ms, 2),
+        decision=decision,
+        eligibility_score=eligibility_score,
+        validation_confidence=validation_confidence,
+    )
 
     return {
         "messages": [_make_assistant_message(f"We have reached a decision on your application. Decision: {decision.replace('_', ' ').title()}. {decision_explanation}")],
-        "current_phase": "enablement", "decision": decision, "decision_explanation": decision_explanation,
-        "eligibility_score": eligibility_score, "eligibility_factors": eligibility_factors,
+        "current_phase": "enablement",
+        "decision": decision,
+        "decision_explanation": decision_explanation,
+        "eligibility_score": eligibility_score,
+        "eligibility_factors": eligibility_factors,
+        "validation_confidence": validation_confidence,
     }

@@ -124,6 +124,7 @@ async def run_validation_agent(state: ApplicantState) -> ApplicantState:
     config = {
         "configurable": {
             "thread_id": state.get("application_id", "default"),
+            "recursion_limit": 15,
         },
     }
 

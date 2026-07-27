@@ -45,7 +45,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
         from src.agents.extraction.graph import get_extraction_subgraph
 
         graph = get_extraction_subgraph()
-        config = {"configurable": {"thread_id": f"{application_id}_extraction"}}
+        config = {"configurable": {"thread_id": f"{application_id}_extraction", "recursion_limit": 10}}
         result = await graph.ainvoke(state, config=config)
         gate_status = result.get("gate_status", "unknown")
         logger.info("extraction_agent_complete", document_count=len(result.get("extracted_data", {})), gate_status=gate_status)
@@ -56,9 +56,14 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
         if gate_status == "failed":
             logger.warning("extraction_gate_failed", gate_errors=result.get("gate_errors"))
             return {
-                "extracted_data": {}, "validation_results": {}, "discrepancies": [],
+                "extracted_data": {},
+                "validation_results": {"overall_confidence": 0.0},
+                "validation_confidence": 0.0,
+                "discrepancies": [],
                 "messages": [_make_assistant_message("Document extraction encountered validation errors. Please review your documents and try again.")],
-                "current_phase": "review", "gate_status": "failed", "gate_errors": result.get("gate_errors", []),
+                "current_phase": "review",
+                "gate_status": "failed",
+                "gate_errors": result.get("gate_errors", []),
             }
 
         # Convert extracted_data (keyed by doc_id) to doc_type keys
@@ -79,6 +84,16 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
         logger.exception("extraction_agent_failed", error=str(e))
         if trace:
             trace.span(name="document_extraction", input={"applicant_id": applicant_id}, output={"error": str(e)}, level="ERROR")
+        return {
+            "extracted_data": {},
+            "validation_results": {"overall_confidence": 0.0},
+            "validation_confidence": 0.0,
+            "discrepancies": [],
+            "messages": [_make_assistant_message("Document extraction encountered an error. Please try again.")],
+            "current_phase": "review",
+            "gate_status": "failed",
+            "gate_errors": [{"error": str(e)}],
+        }
 
     # Validation subgraph
     validation_results: dict = {}
@@ -99,11 +114,9 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
         if trace:
             trace.span(name="cross_document_validation", input={"applicant_id": applicant_id, "support_category": support_category}, output={"error": str(e)}, level="ERROR")
 
-    # Build validation_results keyed by document type from validation results
-    validation_results_by_type: dict = {}
-    for doc_type, val_result in validation_results.items():
-        if isinstance(val_result, dict):
-            validation_results_by_type[doc_type] = val_result
+    # Preserve validation_results structure including overall_confidence
+    # The validation agent returns: {"status": ..., "overall_confidence": ..., "discrepancies": ...}
+    # We pass this through so the decision node can access validation_results.overall_confidence
 
     response = (
         f"Document processing is complete. We extracted data from {len(extracted_data)} document(s). "
@@ -114,11 +127,12 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
         trace.update(output={"documents_extracted": len(extracted_data), "discrepancies_found": len(discrepancies), "phase_transition": "review"})
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
-    logger.info("node_exit", node="processing", duration_ms=round(duration_ms, 2), extraction_count=len(extracted_data), discrepancy_count=len(discrepancies))
+    logger.info("node_exit", node="processing", duration_ms=round(duration_ms, 2), extraction_count=len(extracted_data), discrepancy_count=len(discrepancies), validation_confidence=validation_results.get("overall_confidence"))
 
     return {
         "extracted_data": extracted_data,
-        "validation_results": validation_results_by_type,
+        "validation_results": validation_results,
+        "validation_confidence": validation_results.get("overall_confidence", 0.0),
         "discrepancies": discrepancies,
         "messages": [_make_assistant_message(response)],
         "current_phase": "review",
