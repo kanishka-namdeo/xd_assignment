@@ -8,6 +8,7 @@ from ui.components.document_status import (
     render_document_status,
     render_document_summary,
 )
+from ui.components.phase_guidance import render_phase_guidance
 from ui.components.phase_tracker import render_phase_tracker
 from ui.fragments.chat_area import render_chat_area
 
@@ -16,7 +17,7 @@ logger = structlog.get_logger(__name__)
 ALLOWED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 
 PHASE_LABELS = {
-    "auth": "Authentication",
+    "authentication": "Authentication",
     "intake": "Intake",
     "document_collection": "Document Collection",
     "processing": "Processing",
@@ -152,12 +153,13 @@ def render() -> None:
     if not _ensure_authenticated():
         return
 
-    st.set_page_config(page_title="Application Chat", layout="wide")
-
     _render_header()
     _render_sidebar()
 
     # Show session restore banner on first render after restore
     _render_session_restore_banner()
+
+    # Render per-phase guidance panel
+    render_phase_guidance()
 
     render_chat_area()
