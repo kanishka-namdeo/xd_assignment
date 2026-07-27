@@ -187,7 +187,7 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models, stubs) and `utils/` (shared utilities including error classifier, retry logic, circuit breaker, state size monitoring).
 
-Services layer includes `AuthService` (login/session management), `ChatService` (orchestrator invocation, state persistence, interrupt handling), `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, and `ExtractionService`. Domain constants are centralized in `domain/constants/` (document_types, validation_rules, eligibility_rules). Infrastructure includes shared checkpointer factory with TTL cleanup, health check endpoint at `/api/v1/health/langgraph`, and streaming support via `run_streaming()`.
+Services layer includes `AuthService` (login/session management), `ChatService` (orchestrator invocation, state persistence, interrupt handling), `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, `ExtractionService`, and `ExtractionPipeline` (orchestrated extraction with gate integration). Domain constants are centralized in `domain/constants/` (document_types, validation_rules, eligibility_rules). Infrastructure includes shared checkpointer factory with TTL cleanup, health check endpoint at `/api/v1/health/langgraph`, and streaming support via `run_streaming()`. Utilities layer includes `emirates_id.py`, `file_hash.py`, and `validators.py` in addition to the core utilities.
 
 ### `ui/` - Streamlit Frontend
 
@@ -195,7 +195,7 @@ Chat-based user interface for applicant interaction. Uses `st.navigation` with `
 
 ### `tests/` - Test Suite
 
-Unit, integration, and end-to-end tests mirroring the `src/` structure. ~241+ unit tests covering agents (174), gates (58), and domain (9). Integration tests: 4 populated, 3 stubs. E2E and system tests for full application flow validation. Root-level ad-hoc test scripts also present (e.g., `test_comprehensive_e2e.py`, `test_e2e_phases.py`, `test_fresh_e2e.py`, `test_session_recovery.py`, `test_upload.py`).
+Unit, integration, and end-to-end tests mirroring the `src/` structure. ~241+ unit tests covering agents (174), gates (58), and domain (9). Integration tests: 4 populated, 3 stubs. E2E and system tests for full application flow validation. Root-level ad-hoc test scripts also present (e.g., `live_test.py`, `db_layer_test.py`, `live_api_test.py`, `e2e_api_test.py`, `test_edge_cases.py`, `test_logging.py`).
 
 Test mocking patterns: extraction tools mock infrastructure classes at `src.infrastructure.document_processing.*` (not at `src.agents.extraction.tools.*` since imports are local). Decision agent is mocked via `patch("src.agents.decision.graph.get_decision_agent", return_value=...)` (factory function pattern). Service-layer tests patch `src.services.auth_service.AuthService.login` and `src.services.chat_service.ChatService.handle_chat`.
 
@@ -210,7 +210,7 @@ SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 4 migrations: ini
 ### `data/` - Test Data Storage
 
 Runtime storage for synthetic test applicant data used in development and testing. Contains:
-- `test_applicants/` - Golden dataset with 3 cross-document-consistent profiles (approved, manual_review, soft_decline)
+- `test_applicants/` - Golden dataset with 3 cross-document-consistent profiles (approved, manual_review, soft_decline) plus additional generated accounts (applicant_7537, applicant_7538, applicant_7539, custom_test_profile)
 - `fresh_accounts/` - Fresh generated accounts for E2E testing with full document sets
 - `uploads/` - Temporary upload storage during test sessions
 
@@ -220,18 +220,23 @@ Populated by running `scripts/generate_test_data.py` and `scripts/generate_fresh
 
 Development and operational scripts for data generation, testing, and maintenance. Categories include:
 - **Data Generation**: `generate_test_data.py`, `generate_fresh_account.py`
-- **E2E Testing**: `e2e_test.py`, `final_e2e_test.py`, `continue_e2e_test.py`, `stream_e2e_test.py`
-- **Database**: `check_db.py`, `check_column.py`, `add_validation_confidence_column.py`, `apply_checkpoint_migration.py`
+- **E2E Testing**: `e2e_test.py`, `final_e2e_test.py`, `continue_e2e_test.py`, `stream_e2e_test.py`, `browser_e2e_test.py`
+- **Database**: `check_db.py`, `check_db_column.py`, `check_column.py`, `check_migration.py`, `add_validation_confidence_column.py`, `apply_checkpoint_migration.py`
 - **Demo/Smoke**: `demo_smoke_test.py`, `quick_smoke_test.py`
-- **API Testing**: `test_fastapi.py`, `test_persist.py`
+- **API Testing**: `test_fastapi.py`, `test_persist.py`, `api_client.py`
 - **Streaming**: `long_stream_test.py`, `stream_upload_test.py`, `upload_and_process.py`
-- **Browser E2E**: `browser_e2e_test.py`
+- **Enablement Debugging**: `debug_enablement.py`, `test_enablement_detailed.py`
+- **MCP/Credential Management**: `mcp_callback.py`, `scrub_github_pat.py`, `scrub_mcp.py`, `scrub_mcp_tree.py`
 
-19 scripts total.
+28 scripts total.
+
+### `SOLUTION_SUMMARY.md` - Solution Summary
+
+First-class deliverable for the AI Case Study submission. Contains high-level architecture diagram, tool choice justification, data-type tool justification, scikit-learn algorithm justification, modular workflow breakdown, and future improvements. Capped at 10 pages. Originally located at `docs/solution-summary.md`, moved to root to signal it is a submission artifact.
 
 ### `docs/` - Documentation
 
-Design specifications, architecture decisions, and durable project documentation. Contains 10 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns, agent tools evaluation, LangGraph configuration audit, UI/UX polish), 4 active implementation plans, Langfuse v4 setup guide, and `solution-summary.md` — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers documenting comprehensive test results.
+Design specifications, architecture decisions, and durable project documentation. Contains 12 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns, agent tools evaluation, LangGraph configuration audit, UI/UX polish, demo readiness fixes, API-only agent skill), 6 active implementation plans, Langfuse v4 setup guide, architecture decision records (6 ADRs), and `SOLUTION_SUMMARY.md` (at repo root) — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers documenting comprehensive test results.
 
 ### `reference_docs/` - Reference Documentation
 

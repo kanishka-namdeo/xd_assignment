@@ -27,6 +27,8 @@ flowchart TD
         VS[Validation Service]
         ELS[Eligibility Service]
         DES[Decision Service]
+        EP[Extraction Pipeline]
+        AR[Agent Runner]
     end
 
     subgraph "Agent Layer"
@@ -134,6 +136,42 @@ All agent state flows through `ApplicantState` (25+ fields TypedDict). LangGraph
 
 ---
 
+## Data-Type Tool Justification
+
+The case study requires justification of specific tools for specific data types. The table above covers *why* each technology was chosen; this section addresses *which tool handles which data type*.
+
+| Data Type | Tool | Justification |
+|-----------|------|---------------|
+| **Text** (PDF, DOCX) | pymupdf4llm, python-docx | pymupdf4llm extracts text + layout from PDFs with high fidelity, preserving headings, paragraphs, and tables. python-docx handles DOCX with preserved formatting. Both are pure Python, no external dependencies, and work reliably on UAE government document formats. |
+| **Images** (PNG, JPG) | PaddleOCR | State-of-the-art OCR for Arabic + English text; handles low-quality scans, skewed documents, and handwritten forms. Local inference via Ollama-compatible API (no PII egress to third-party services). |
+| **Tabular** (PDF tables, XLSX) | camelot-py, openpyxl | camelot-py extracts tables from PDFs using lattice (line-detection) and stream (whitespace-detection) modes; openpyxl reads XLSX with full cell-type support (numbers, dates, formulas). Both preserve table structure for downstream cross-document validation. |
+| **Structured data** (JSON) | Pydantic v2 | All agent I/O validated against Pydantic schemas with `field_validator` and `model_validator`. Enforces business rules (Emirates ID length, income thresholds, date formats) at parse time. `SecretStr` for sensitive fields. Integrated with FastAPI for automatic request validation. |
+
+**Multimodal processing pipeline:** Document uploads → `domain/document_classifier.py` (file path → doc type) → `src/infrastructure/document_processing/` (unified extraction API) → per-type parser (pymupdf4llm for PDF, PaddleOCR for images, camelot-py for tables, python-docx for DOCX, openpyxl for XLSX) → structured JSON output → Pydantic validation → PostgreSQL persistence.
+
+---
+
+## Scikit-Learn Algorithm Justification
+
+The case study requires justification of scikit-learn algorithms for classification based on data characteristics and problem statement.
+
+**Intended algorithm:** Gradient Boosting Classifier (with RandomForest as baseline)
+
+**Rationale based on data characteristics:**
+
+- **Feature types:** Mixed (demographic: categorical + numerical; financial: continuous). Gradient boosting handles mixed types without extensive preprocessing (unlike neural networks which require normalization and encoding).
+- **Dataset size:** Synthetic test data is small (<1000 profiles). Gradient boosting performs well on small-to-medium datasets without overfitting (unlike deep learning which requires large datasets).
+- **Interpretability requirement:** Government social support decisions must be explainable. Gradient boosting provides feature importance scores (via `feature_importances_`), supporting the "explanation" output in the decision agent. SHAP values can be computed post-hoc for per-decision explainability.
+- **Class imbalance:** Approval rates may be skewed (e.g., 60% approve, 30% manual review, 10% soft decline). Gradient boosting supports `class_weight='balanced'` parameter to handle imbalance without manual resampling.
+- **Non-linear relationships:** Income thresholds, residency duration requirements, and family size interactions are non-linear. Tree-based models capture these without manual feature engineering (unlike logistic regression which requires polynomial features or interaction terms).
+- **Missing data handling:** Real applications may have missing fields. Gradient boosting handles missing values natively (learns default direction at each split).
+
+**Baseline comparison:** Logistic regression as baseline for interpretability (coefficients as feature importance); if gradient boosting performance is comparable, prefer logistic regression for simplicity. Otherwise, gradient boosting.
+
+**Current status:** ML model is a stub in prototype phase (`src/ml/eligibility_model.py`). Real model requires training data from historical applications (not available for prototype). Feature engineering pipeline (`src/ml/feature_engineering.py`) is complete and ready for model training — extracts demographic features (employment status, children count, residency duration) and financial features (monthly salary, credit score, assets/liabilities ratio).
+
+---
+
 ## 3. Modular Workflow Breakdown
 
 ### Orchestrator Agent
@@ -194,7 +232,7 @@ All agent state flows through `ApplicantState` (25+ fields TypedDict). LangGraph
 - **Production LLM failover**: Currently binary (Ollama or StreamLake). Add a tiered fallback chain (local Ollama → Azure OpenAI → AWS Bedrock) with automatic health checks and per-request provider selection based on latency and availability.
 - **Real-time document processing queue**: The `document_processing_queue` table exists but is not yet wired to a background worker. Implementing Celery or ARQ workers would allow asynchronous extraction of large PDFs without blocking the chat flow.
 - **Multi-language support**: Agent prompts are English-only. Adding Arabic locale support (already partially implemented in `data_generation/` via Mimesis Arabic locale) would require prompt localization and RTL UI adjustments in Streamlit.
-- **Evaluation accuracy datasets**: The 3 accuracy-focused eval stubs (`evals/test_extraction_accuracy.py`, `test_validation_rules.py`, `test_eligibility_scoring.py`) need ground-truth datasets and metric calculation. The four-layer correctness framework (audit, golden dataset, schema contracts, live integration) is complete — 50+ tests validating all 19 agent tools. Langfuse datasets can store labeled cases for regression tracking.
+- **Evaluation accuracy datasets**: The 3 accuracy-focused eval scripts (`evals/test_extraction_accuracy.py`, `test_validation_rules.py`, `test_eligibility_scoring.py`) exist at the `evals/` root level outside the four-layer framework directories. They need ground-truth datasets and metric calculation. The four-layer correctness framework (audit, golden dataset, schema contracts, live integration) is complete — 50+ tests validating all 19 agent tools. Langfuse datasets can store labeled cases for regression tracking.
 
 ### API Design Considerations
 

@@ -35,8 +35,9 @@ Design specs produced by the brainstorming workflow. Each spec is a durable arti
 || `2026-07-27-langgraph-configuration-audit-design.md` | LangGraph configuration audit: 15 issues (state reducers, checkpointer factory, state mutation, error classification, graph caching, deprecated API, recursion limits, create_agent imports, retry logic, streaming, checkpoint TTL, state size management, graceful degradation, health check, observability) |
 || `2026-07-27-ui-ux-polish-design.md` | UI/UX polish improvements: high contrast mode, text size accessibility, help panel, phase guidance, document status cards |
 || `2026-07-27-demo-readiness-fixes-design.md` | Demo readiness bug fixes: 8 bugs/architecture violations fixes + verification plan for full 7-phase flow |
+|| `2026-07-28-api-only-agent-skill-design.md` | API-only agent skill: Cursor Agent Skill for full FastAPI backend interaction without Streamlit UI, automated testing, demo/smoke testing, data generation |
 
-11 design specs total.
+12 design specs total.
 
 ### `superpowers/plans/` - Implementation Plans
 Active implementation plans tracking ongoing work items.
@@ -47,15 +48,16 @@ Active implementation plans tracking ongoing work items.
 || `2026-07-27-architecture-documentation-suite.md` | Architecture documentation suite implementation |
 || `2026-07-27-demo-readiness-fixes.md` | Demo readiness bug fixes and improvements |
 || `2026-07-27-langgraph-configuration-audit.md` | LangGraph configuration audit implementation |
+|| `2026-07-28-api-only-agent-skill.md` | API-only agent skill implementation: Cursor Agent Skill and CLI script for full FastAPI backend interaction |
 
-5 active plans.
+6 active plans.
 
 ### Solution Summary
-Living design artifact maintained by agents throughout the project lifecycle.
+Living design artifact maintained by agents throughout the project. Moved to repo root as `SOLUTION_SUMMARY.md` per case study submission requirements.
 
 || File | Topic |
 ||------|-------|
-|| `solution-summary.md` | High-level architecture diagram, tool choice justification, modular workflow breakdown, future improvements and integration considerations. Capped at 10 pages. Updated on every architecture- or integration-affecting change. |
+|| `SOLUTION_SUMMARY.md` (at repo root) | High-level architecture diagram, tool choice justification, data-type tool justification, scikit-learn algorithm justification, modular workflow breakdown, future improvements and integration considerations. Capped at 10 pages. Moved to root per case study submission requirements. |
 
 ### Architecture Documentation
 Comprehensive documentation suite for the project.
@@ -81,3 +83,16 @@ E2E testing artifacts produced during live testing sessions.
 ||------|-------|
 || `live-testing-tracker.md` | Comprehensive E2E testing tracker: 9/9 tests passing, 6 bugs fixed, all phases validated with real LLM requests |
 || `e2e-testing-tracker.md` | Detailed E2E test results with bug analysis, logging enhancements, and remaining issues |
+
+### Architecture Decision Records
+Architecture decision records (ADRs) documenting key technical decisions.
+
+|| File | Topic |
+||------|-------|
+|| `README.md` | ADR index and methodology |
+|| `0001-langgraph-orchestration.md` | Use LangGraph for agent orchestration |
+|| `0002-polyglot-persistence.md` | Polyglot persistence with PostgreSQL, Neo4j, Qdrant |
+|| `0003-four-layer-architecture.md` | Four-layer architecture (API, Services, Agents/Domain, Infrastructure) |
+|| `0004-local-llm-fallback.md` | Local LLM fallback with Ollama |
+|| `0005-structured-logging-pii.md` | Structured logging with PII redaction |
+|| `0006-dox-framework.md` | DOX framework for project documentation |
