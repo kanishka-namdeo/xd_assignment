@@ -7,14 +7,13 @@ import time
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import AsyncDB, get_db
+from src.api.deps import get_db
 from src.config import settings
-from src.domain.schemas.chat import ChatRequest, ChatResponse
-from src.infrastructure.db.repositories.application_repo import ApplicationRepository
+from src.domain.schemas.chat import ChatResponse
 from src.infrastructure.llm.client import LLMClient
 from src.services.agent_runner import run_streaming
 from src.services.chat_service import ChatService
