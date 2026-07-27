@@ -150,3 +150,35 @@
     font-size: 11px;
     font-style: italic;
 }
+
+/* Accessibility: Focus indicators */
+*:focus-visible {
+    outline: 2px solid #0066CC !important;
+    outline-offset: 2px !important;
+}
+
+/* Accessibility: Text scaling */
+body {
+    font-size: var(--text-scale, 100%);
+}
+
+/* Accessibility: High contrast mode overrides */
+.high-contrast .stApp {
+    background-color: #FFFFFF;
+    color: #000000;
+}
+
+/* Accessibility: Skip link (hidden but available) */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: #000;
+    color: white;
+    padding: 8px;
+    z-index: 100;
+}
+
+.skip-link:focus {
+    top: 0;
+}
