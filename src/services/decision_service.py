@@ -68,6 +68,7 @@ class DecisionService:
         decision_explanation: str,
         eligibility_score: float,
         eligibility_factors: dict | None = None,
+        validation_confidence: float | None = None,
     ) -> None:
         """Persist decision results computed by the orchestrator graph.
 
@@ -83,6 +84,7 @@ class DecisionService:
         application.decision = decision
         application.decision_explanation = decision_explanation
         application.eligibility_score = eligibility_score
+        application.validation_confidence = validation_confidence
         if eligibility_factors is not None:
             application.eligibility_factors = eligibility_factors
         await self.application_repo.update(application)
@@ -119,6 +121,15 @@ class DecisionService:
             return None
         return result.get("explanation")
 
+    def format_decision_card(self, decision_data: dict) -> dict:
+        """Format a decision for UI display.
+
+        Wraps the agent-layer decision_formatting_tool to keep the service
+        layer from importing agent tools directly.
+        """
+        from src.agents.decision.tools import decision_formatting_tool
+        return decision_formatting_tool.invoke(decision_data)
+
     def _apply_decision_rules(
         self,
         eligibility_score: float,
@@ -129,8 +140,8 @@ class DecisionService:
 
         Rules:
         - score >= 0.7 and no critical issues -> approved
-        - score >= 0.5 or minor issues -> manual_review
-        - score < 0.5 or critical issues -> soft_decline
+        - score >= 0.40 or minor issues -> manual_review
+        - score < 0.40 or critical issues -> soft_decline
         """
         has_critical_issues = any(
             v.status == "discrepancies_found" and v.confidence_score < 0.5
