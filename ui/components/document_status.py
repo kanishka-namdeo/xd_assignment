@@ -62,10 +62,15 @@ def get_required_docs_for_category(support_category: str | None) -> list[str]:
 
 def render_document_progress(support_category: str | None = None) -> None:
     """Render a progress bar showing document upload completion."""
-    uploaded = st.session_state.get("uploaded_documents", {}) or {}
+    uploaded_docs = st.session_state.get("uploaded_documents", []) or []
     required = get_required_docs_for_category(support_category)
 
-    uploaded_count = len([doc for doc in required if doc in uploaded])
+    # Build a set of uploaded doc_type values from the list of dicts
+    uploaded_types = {
+        doc.get("doc_type", "").lower() if isinstance(doc, dict) else str(doc).lower()
+        for doc in uploaded_docs
+    }
+    uploaded_count = len([doc for doc in required if doc.lower() in uploaded_types])
     total_count = len(required)
     progress = uploaded_count / total_count if total_count > 0 else 0
 
