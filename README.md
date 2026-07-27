@@ -171,7 +171,7 @@ See [Solution Summary](docs/solution-summary.md) for the full architecture diagr
 | `src/infrastructure/` | Database (PostgreSQL, Neo4j, Qdrant), LLM, document processing, observability, vector storage |
 | `src/data_generation/` | Synthetic test data generators with cross-document consistency |
 | `src/ml/` | ML eligibility model and feature engineering |
-| `ui/` | Streamlit frontend (chat UI, decision cards, phase tracker, document status) |
+| `ui/` | Streamlit frontend (chat UI, decision cards, phase tracker, document status, phase guidance, accessibility controls, Help panel) |
 | `tests/` | Unit, integration, and E2E tests (~241+ unit tests) |
 | `evals/` | Four-layer agent evaluation framework (audit, golden dataset, schema contracts, live integration) — 50+ tests validating 19 agent tools |
 | `alembic/` | SQLAlchemy Alembic migrations (16-table schema) |
