@@ -174,7 +174,7 @@ def _extract_ml_features(applicant_features: dict) -> list[float]:
 
 
 @tool
-def ml_model_predict_tool(applicant_features: dict[str, Any]) -> dict[str, Any]:
+def ml_model_predict_tool(applicant_features: Any = None) -> dict[str, Any]:
     """Call scikit-learn HistGradientBoostingClassifier to predict eligibility.
 
     Falls back to rule-based scoring if ML model is not available.
@@ -196,6 +196,18 @@ def ml_model_predict_tool(applicant_features: dict[str, Any]) -> dict[str, Any]:
         Dict with probability, predicted_class, method, and factor_contributions.
     """
     start = time.monotonic()
+
+    if applicant_features is None or not isinstance(applicant_features, dict):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="ml_model_predict", reason="applicant_features must be a dict")
+        return {
+            "probability": 0.0,
+            "predicted_class": "not_eligible",
+            "method": "error",
+            "factor_contributions": {},
+            "error": "applicant_features must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     model = _load_ml_model()
     if model is not None:
@@ -239,7 +251,7 @@ def ml_model_predict_tool(applicant_features: dict[str, Any]) -> dict[str, Any]:
 
 @tool
 def feature_importance_tool(
-    applicant_features: dict[str, Any],
+    applicant_features: Any = None,
     n_top_features: int = 5,
 ) -> dict[str, Any]:
     """Compute feature importance using SHAP values or permutation importance.
@@ -254,6 +266,16 @@ def feature_importance_tool(
         Dict with top_features list and method used.
     """
     start = time.monotonic()
+
+    if applicant_features is None or not isinstance(applicant_features, dict):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="feature_importance", reason="applicant_features must be a dict")
+        return {
+            "top_features": [],
+            "method": "error",
+            "error": "applicant_features must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     model = _load_ml_model()
     if model is not None:
@@ -317,9 +339,9 @@ def feature_importance_tool(
 
 @tool
 def adjust_factor_weighting_tool(
-    eligibility_score: float,
-    feature_importance: list[dict[str, Any]],
-    applicant_context: dict[str, Any],
+    eligibility_score: Any = None,
+    feature_importance: Any = None,
+    applicant_context: Any = None,
 ) -> dict[str, Any]:
     """Adjust eligibility score based on applicant context and support category.
 
@@ -334,6 +356,39 @@ def adjust_factor_weighting_tool(
         Dict with adjusted_score, adjustment_amount, and reasoning.
     """
     start = time.monotonic()
+
+    if eligibility_score is None or not isinstance(eligibility_score, (int, float)):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="adjust_factor_weighting", reason="eligibility_score must be a number")
+        return {
+            "adjusted_score": 0.0,
+            "adjustment_amount": 0.0,
+            "reasoning": "eligibility_score must be a number",
+            "error": "eligibility_score must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if feature_importance is None or not isinstance(feature_importance, list):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="adjust_factor_weighting", reason="feature_importance must be a list")
+        return {
+            "adjusted_score": 0.0,
+            "adjustment_amount": 0.0,
+            "reasoning": "feature_importance must be a list",
+            "error": "feature_importance must be a list",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if applicant_context is None or not isinstance(applicant_context, dict):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="adjust_factor_weighting", reason="applicant_context must be a dict")
+        return {
+            "adjusted_score": 0.0,
+            "adjustment_amount": 0.0,
+            "reasoning": "applicant_context must be a dict",
+            "error": "applicant_context must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     support_category = applicant_context.get("support_category", "")
     family_size = applicant_context.get("family_size", 1)
@@ -387,10 +442,10 @@ def adjust_factor_weighting_tool(
 
 @tool
 def eligibility_explanation_tool(
-    eligibility_score: float,
-    feature_importance: list[dict[str, Any]],
-    applicant_context: dict[str, Any],
-    validation_results: dict[str, Any],
+    eligibility_score: Any = None,
+    feature_importance: Any = None,
+    applicant_context: Any = None,
+    validation_results: Any = None,
 ) -> dict[str, Any]:
     """Generate human-readable explanation of eligibility decision.
 
@@ -404,6 +459,50 @@ def eligibility_explanation_tool(
         Dict with explanation text, key_factors, and recommendation.
     """
     start = time.monotonic()
+
+    if eligibility_score is None or not isinstance(eligibility_score, (int, float)):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="eligibility_explanation", reason="eligibility_score must be a number")
+        return {
+            "explanation": "Unable to generate explanation: eligibility_score must be a number.",
+            "key_factors": [],
+            "recommendation": "error",
+            "error": "eligibility_score must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if feature_importance is None or not isinstance(feature_importance, list):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="eligibility_explanation", reason="feature_importance must be a list")
+        return {
+            "explanation": "Unable to generate explanation: feature_importance must be a list.",
+            "key_factors": [],
+            "recommendation": "error",
+            "error": "feature_importance must be a list",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if applicant_context is None or not isinstance(applicant_context, dict):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="eligibility_explanation", reason="applicant_context must be a dict")
+        return {
+            "explanation": "Unable to generate explanation: applicant_context must be a dict.",
+            "key_factors": [],
+            "recommendation": "error",
+            "error": "applicant_context must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if validation_results is None or not isinstance(validation_results, dict):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="eligibility_explanation", reason="validation_results must be a dict")
+        return {
+            "explanation": "Unable to generate explanation: validation_results must be a dict.",
+            "key_factors": [],
+            "recommendation": "error",
+            "error": "validation_results must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     parts: list[str] = []
 

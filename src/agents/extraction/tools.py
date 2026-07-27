@@ -46,7 +46,7 @@ def _file_exists(file_path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 @tool
-def ocr_extract_tool(file_path: str, language: str = "en+ar") -> dict:
+def ocr_extract_tool(file_path: Any = None, language: str = "en+ar") -> dict:
     """Extract text from images using PaddleOCR.
 
     Use for: Scanned documents, images (Emirates ID, application forms).
@@ -60,6 +60,12 @@ def ocr_extract_tool(file_path: str, language: str = "en+ar") -> dict:
         Dict with keys: text, blocks, confidence, language, duration_ms.
     """
     start = time.monotonic()
+
+    if file_path is None or not isinstance(file_path, str) or not file_path:
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="ocr_extract", reason="file_path must be a non-empty string")
+        return {"error": "file_path must be a non-empty string", "duration_ms": round(duration_ms, 2)}
+
     logger.info("tool_enter", tool="ocr_extract", file_path=file_path, language=language)
 
     if not _file_exists(file_path):
@@ -97,7 +103,7 @@ def ocr_extract_tool(file_path: str, language: str = "en+ar") -> dict:
 # ---------------------------------------------------------------------------
 
 @tool
-def pdf_parse_tool(file_path: str, pages: list[int] | None = None, extract_tables: bool = True) -> dict:
+def pdf_parse_tool(file_path: Any = None, pages: list[int] | None = None, extract_tables: bool = True) -> dict:
     """Parse digital PDF using PyMuPDF4LLM.
 
     Use for: Digital PDFs with text layer (credit reports, bank statements).
@@ -112,6 +118,12 @@ def pdf_parse_tool(file_path: str, pages: list[int] | None = None, extract_table
         Dict with keys: markdown, json_structure, confidence, field_count, duration_ms.
     """
     start = time.monotonic()
+
+    if file_path is None or not isinstance(file_path, str) or not file_path:
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="pdf_parse", reason="file_path must be a non-empty string")
+        return {"error": "file_path must be a non-empty string", "duration_ms": round(duration_ms, 2)}
+
     logger.info("tool_enter", tool="pdf_parse", file_path=file_path, pages=pages)
 
     if not _file_exists(file_path):
@@ -153,7 +165,7 @@ def pdf_parse_tool(file_path: str, pages: list[int] | None = None, extract_table
 # ---------------------------------------------------------------------------
 
 @tool
-def table_extract_tool(file_path: str, flavor: str = "auto", pages: list[int] | None = None) -> dict:
+def table_extract_tool(file_path: Any = None, flavor: str = "auto", pages: list[int] | None = None) -> dict:
     """Extract tables from PDF using Camelot.
 
     Use for: Tabular data in PDFs (bank statements, assets/liabilities).
@@ -168,6 +180,12 @@ def table_extract_tool(file_path: str, flavor: str = "auto", pages: list[int] | 
         Dict with keys: tables (list of list-of-dicts), table_count, confidence, flavor, duration_ms.
     """
     start = time.monotonic()
+
+    if file_path is None or not isinstance(file_path, str) or not file_path:
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="table_extract", reason="file_path must be a non-empty string")
+        return {"error": "file_path must be a non-empty string", "duration_ms": round(duration_ms, 2)}
+
     logger.info("tool_enter", tool="table_extract", file_path=file_path, flavor=flavor)
 
     if not _file_exists(file_path):
@@ -208,7 +226,7 @@ def table_extract_tool(file_path: str, flavor: str = "auto", pages: list[int] | 
 # ---------------------------------------------------------------------------
 
 @tool
-def resume_parse_tool(file_path: str) -> dict:
+def resume_parse_tool(file_path: Any = None) -> dict:
     """Parse resume/CV using SmartResume.
 
     Use for: Resumes in DOCX or PDF format.
@@ -222,6 +240,12 @@ def resume_parse_tool(file_path: str) -> dict:
         skills, total_positions, current_employer, confidence, duration_ms.
     """
     start = time.monotonic()
+
+    if file_path is None or not isinstance(file_path, str) or not file_path:
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="resume_parse", reason="file_path must be a non-empty string")
+        return {"error": "file_path must be a non-empty string", "duration_ms": round(duration_ms, 2)}
+
     logger.info("tool_enter", tool="resume_parse", file_path=file_path)
 
     if not _file_exists(file_path):
@@ -287,7 +311,7 @@ def resume_parse_tool(file_path: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @tool
-def xlsx_extract_tool(file_path: str, sheet_name: str | None = None) -> dict:
+def xlsx_extract_tool(file_path: Any = None, sheet_name: str | None = None) -> dict:
     """Extract data from Excel file using openpyxl + pandas.
 
     Use for: Assets/liabilities statements in XLSX format.
@@ -302,6 +326,12 @@ def xlsx_extract_tool(file_path: str, sheet_name: str | None = None) -> dict:
         sheet_count, duration_ms.
     """
     start = time.monotonic()
+
+    if file_path is None or not isinstance(file_path, str) or not file_path:
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="xlsx_extract", reason="file_path must be a non-empty string")
+        return {"error": "file_path must be a non-empty string", "duration_ms": round(duration_ms, 2)}
+
     logger.info("tool_enter", tool="xlsx_extract", file_path=file_path, sheet_name=sheet_name)
 
     if not _file_exists(file_path):
@@ -342,7 +372,7 @@ def xlsx_extract_tool(file_path: str, sheet_name: str | None = None) -> dict:
 # ---------------------------------------------------------------------------
 
 @tool
-def confidence_score_tool(extracted_data: dict, document_type: str) -> dict:
+def confidence_score_tool(extracted_data: Any = None, document_type: str = "") -> dict:
     """Compute field-level confidence scores for extracted data.
 
     Use for: Assessing extraction quality after extraction.
@@ -358,6 +388,19 @@ def confidence_score_tool(extracted_data: dict, document_type: str) -> dict:
         field_confidences, low_confidence_fields.
     """
     start = time.monotonic()
+
+    if extracted_data is None or not isinstance(extracted_data, dict):
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("tool_invalid_input", tool="confidence_score", reason="extracted_data must be a dict")
+        return {
+            "overall_confidence": 0.0,
+            "routing_decision": "reject",
+            "field_confidences": {},
+            "low_confidence_fields": [],
+            "error": "extracted_data must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
+
     logger.info("tool_enter", tool="confidence_score", document_type=document_type)
 
     try:

@@ -11,10 +11,10 @@ logger = structlog.get_logger(__name__)
 
 @tool
 def decision_logic_tool(
-    eligibility_score: float,
-    validation_confidence: float,
-    discrepancies: list[dict[str, Any]],
-    support_category: str,
+    eligibility_score: Any = None,
+    validation_confidence: Any = None,
+    discrepancies: Any = None,
+    support_category: Any = None,
 ) -> dict[str, Any]:
     """Apply decision rules to determine final recommendation.
 
@@ -33,6 +33,58 @@ def decision_logic_tool(
         Dict with decision, reasoning, and confidence
     """
     start = time.perf_counter()
+
+    if eligibility_score is None or not isinstance(eligibility_score, (int, float)):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_logic", reason="eligibility_score must be a number")
+        return {
+            "decision": "error",
+            "reasoning": "eligibility_score must be a number",
+            "eligibility_score": 0.0,
+            "validation_confidence": 0.0,
+            "critical_discrepancies": 0,
+            "error": "eligibility_score must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if validation_confidence is None or not isinstance(validation_confidence, (int, float)):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_logic", reason="validation_confidence must be a number")
+        return {
+            "decision": "error",
+            "reasoning": "validation_confidence must be a number",
+            "eligibility_score": 0.0,
+            "validation_confidence": 0.0,
+            "critical_discrepancies": 0,
+            "error": "validation_confidence must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if discrepancies is None or not isinstance(discrepancies, list):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_logic", reason="discrepancies must be a list")
+        return {
+            "decision": "error",
+            "reasoning": "discrepancies must be a list",
+            "eligibility_score": 0.0,
+            "validation_confidence": 0.0,
+            "critical_discrepancies": 0,
+            "error": "discrepancies must be a list",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if support_category is None or not isinstance(support_category, str):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_logic", reason="support_category must be a string")
+        return {
+            "decision": "error",
+            "reasoning": "support_category must be a string",
+            "eligibility_score": 0.0,
+            "validation_confidence": 0.0,
+            "critical_discrepancies": 0,
+            "error": "support_category must be a string",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     critical_discrepancies = [
         d
@@ -77,15 +129,16 @@ def decision_logic_tool(
         "eligibility_score": eligibility_score,
         "validation_confidence": validation_confidence,
         "critical_discrepancies": len(critical_discrepancies),
+        "duration_ms": round(duration_ms, 2),
     }
 
 
 @tool
 def decision_explanation_tool(
-    decision: str,
-    eligibility_score: float,
-    validation_confidence: float,
-    applicant_context: dict[str, Any],
+    decision: Any = None,
+    eligibility_score: Any = None,
+    validation_confidence: Any = None,
+    applicant_context: Any = None,
 ) -> dict[str, str]:
     """Generate human-readable explanation of the decision.
 
@@ -99,6 +152,50 @@ def decision_explanation_tool(
         Dict with explanation text and key factors
     """
     start = time.perf_counter()
+
+    if decision is None or not isinstance(decision, str):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_explanation", reason="decision must be a string")
+        return {
+            "explanation": "Unable to generate explanation: decision must be a string.",
+            "key_factors": [],
+            "support_category": "unknown",
+            "error": "decision must be a string",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if eligibility_score is None or not isinstance(eligibility_score, (int, float)):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_explanation", reason="eligibility_score must be a number")
+        return {
+            "explanation": "Unable to generate explanation: eligibility_score must be a number.",
+            "key_factors": [],
+            "support_category": "unknown",
+            "error": "eligibility_score must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if validation_confidence is None or not isinstance(validation_confidence, (int, float)):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_explanation", reason="validation_confidence must be a number")
+        return {
+            "explanation": "Unable to generate explanation: validation_confidence must be a number.",
+            "key_factors": [],
+            "support_category": "unknown",
+            "error": "validation_confidence must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if applicant_context is None or not isinstance(applicant_context, dict):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_explanation", reason="applicant_context must be a dict")
+        return {
+            "explanation": "Unable to generate explanation: applicant_context must be a dict.",
+            "key_factors": [],
+            "support_category": "unknown",
+            "error": "applicant_context must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     support_category = applicant_context.get("support_category", "general")
     family_size = applicant_context.get("family_size", 1)
@@ -148,14 +245,15 @@ def decision_explanation_tool(
         "explanation": explanation,
         "key_factors": key_factors,
         "support_category": support_category,
+        "duration_ms": round(duration_ms, 2),
     }
 
 
 @tool
 def enablement_recommendation_tool(
-    applicant_context: dict[str, Any],
-    eligibility_score: float,
-    decision: str,
+    applicant_context: Any = None,
+    eligibility_score: Any = None,
+    decision: Any = None,
 ) -> dict[str, Any]:
     """Generate personalized enablement recommendations.
 
@@ -168,6 +266,36 @@ def enablement_recommendation_tool(
         Dict with list of recommendations tailored to applicant's profile
     """
     start = time.perf_counter()
+
+    if applicant_context is None or not isinstance(applicant_context, dict):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="enablement_recommendation", reason="applicant_context must be a dict")
+        return {
+            "recommendations": [],
+            "total_count": 0,
+            "error": "applicant_context must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if eligibility_score is None or not isinstance(eligibility_score, (int, float)):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="enablement_recommendation", reason="eligibility_score must be a number")
+        return {
+            "recommendations": [],
+            "total_count": 0,
+            "error": "eligibility_score must be a number",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if decision is None or not isinstance(decision, str):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="enablement_recommendation", reason="decision must be a string")
+        return {
+            "recommendations": [],
+            "total_count": 0,
+            "error": "decision must be a string",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     recommendations = []
 
@@ -241,15 +369,16 @@ def enablement_recommendation_tool(
     return {
         "recommendations": recommendations,
         "total_count": len(recommendations),
+        "duration_ms": round(duration_ms, 2),
     }
 
 
 @tool
 def decision_formatting_tool(
-    decision: str,
-    explanation: str,
-    enablement_recommendations: dict[str, Any] | None,
-    applicant_context: dict[str, Any],
+    decision: Any = None,
+    explanation: Any = None,
+    enablement_recommendations: Any = None,
+    applicant_context: Any = None,
 ) -> dict[str, Any]:
     """Format the final decision for display in the chat interface.
 
@@ -263,6 +392,51 @@ def decision_formatting_tool(
         Dict with formatted decision card and styling information
     """
     start = time.perf_counter()
+
+    if decision is None or not isinstance(decision, str):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_formatting", reason="decision must be a string")
+        return {
+            "title": "Error",
+            "decision": "error",
+            "color": "red",
+            "icon": "error",
+            "explanation": "decision must be a string",
+            "next_steps": [],
+            "enablement_section": None,
+            "error": "decision must be a string",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if explanation is None or not isinstance(explanation, str):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_formatting", reason="explanation must be a string")
+        return {
+            "title": "Error",
+            "decision": "error",
+            "color": "red",
+            "icon": "error",
+            "explanation": "explanation must be a string",
+            "next_steps": [],
+            "enablement_section": None,
+            "error": "explanation must be a string",
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    if applicant_context is None or not isinstance(applicant_context, dict):
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.warning("tool_invalid_input", tool="decision_formatting", reason="applicant_context must be a dict")
+        return {
+            "title": "Error",
+            "decision": "error",
+            "color": "red",
+            "icon": "error",
+            "explanation": "applicant_context must be a dict",
+            "next_steps": [],
+            "enablement_section": None,
+            "error": "applicant_context must be a dict",
+            "duration_ms": round(duration_ms, 2),
+        }
 
     if decision == "approved":
         color = "green"
@@ -319,4 +493,5 @@ def decision_formatting_tool(
         duration_ms=round(duration_ms, 2),
     )
 
+    formatted_card["duration_ms"] = round(duration_ms, 2)
     return formatted_card
