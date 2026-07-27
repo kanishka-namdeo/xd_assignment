@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 
 
-def validate_file_types(files: list) -> tuple[list, list[str]]:
+def validate_file_types(files: list[Any]) -> tuple[list[Any], list[str]]:
     """Validate file types and return (valid_files, error_messages)."""
     valid_files = []
     errors = []
