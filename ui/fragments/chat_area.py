@@ -169,7 +169,6 @@ def _handle_submission(result: ChatInputResult) -> None:
     st.session_state.last_request = {
         "message": result.text,
         "files": result.files,
-        "retry_count": 0,
     }
 
     try:
@@ -177,6 +176,7 @@ def _handle_submission(result: ChatInputResult) -> None:
             response = _call_chat_api(application_id, result.text, file_paths)
     except Exception as error:
         title, message, action_label = _classify_error(error)
+        logger.exception("chat_api_error", error_type=type(error).__name__)
 
         st.error(f"**{title}** — {message}")
 
