@@ -40,6 +40,7 @@ Deterministic validation gates are tested separately under `tests/unit/agents/ga
 - `tests/integration/test_agent_workflows.py` — Agent workflow integration tests (stub)
 - `tests/integration/test_api.py` — API layer integration tests (stub)
 - `tests/integration/test_repositories.py` — Repository integration tests (stub)
+- `tests/integration/test_live_integration.py` — Live agent graph integration tests: structural buildability (15 non-live) + full graph execution with real LLM (6 live, marked `@pytest.mark.live`)
 - `tests/e2e/test_full_application_flow.py` — End-to-end tests covering the complete applicant pipeline with synthetic data
 - `tests/e2e/test_application_flow.py` — Application flow E2E tests
 - `tests/e2e/test_full_pipeline_e2e.py` — Full pipeline E2E tests
@@ -68,11 +69,10 @@ Shared fixtures in `tests/conftest.py`:
 - **End-to-end tests** (`tests/e2e/`): Full stack with all services. Test complete application flow from authentication to decision.
 
 ### Testing Standards
-- Use `pytest` as test runner
-- Use `pytest-asyncio` for async tests
-- Use `unittest.mock` or `pytest-mock` for mocking
-- Use `AsyncMock` for async functions
-- Test both success and failure paths
+Testing patterns (pytest, async testing, mocking strategies, evaluation tests) are defined in `.cursor/rules/testing.mdc`. Key conventions:
+- Use `pytest` as test runner with `pytest-asyncio` for async tests
+- Use `unittest.mock` or `pytest-mock` with `AsyncMock`
+- Mock LLM layer; test everything around it
 - Aim for >80% coverage on business logic
 
 ### Mocking Strategy
@@ -80,6 +80,12 @@ Shared fixtures in `tests/conftest.py`:
 - Mock external APIs in unit tests
 - Use real databases in integration tests (via Docker Compose)
 - Use test fixtures for common data setups
+
+**Extraction test patches**: Infrastructure tools (`PDFParser`, `OCREngine`, `TableExtractor`, `ResumeParser`) are patched at their import location in `src.infrastructure.document_processing.*`, not at `src.agents.extraction.tools.*` (since imports are local within the tool functions).
+
+**Decision agent patches**: The decision agent is obtained via `get_decision_agent()` factory function. Tests patch `src.agents.decision.graph.get_decision_agent` with `return_value=mock_agent` rather than patching a module-level singleton.
+
+**Service-layer patches**: `AuthService.login` and `ChatService.handle_chat` are the patch targets for API-level tests, replacing the previous pattern of patching repositories directly in route handlers.
 
 ## Work Guidance
 

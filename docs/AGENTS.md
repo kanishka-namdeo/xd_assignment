@@ -31,6 +31,7 @@ Design specs produced by the brainstorming workflow. Each spec is a durable arti
 || `2026-07-25-applicant-user-flow-design.md` | Applicant user flow design: chat-only interaction, 7-phase hybrid flow (Phase 0-6), LangGraph state model, agent roles, Streamlit UI, error handling |
 || `2026-07-25-agent-specification-design.md` | Agent architecture spec: 5 agents (orchestrator, extraction, validation, eligibility, decision), ReAct/Reflexion reasoning, deterministic gates, LangGraph state model |
 || `2026-07-25-langgraph-implementation-patterns-design.md` | LangGraph v1 implementation patterns: subgraph decomposition, state isolation, interrupt() wiring, Reflexion topology, create_agent migration, middleware strategy |
+|| `2026-07-27-agent-tools-evaluation-design.md` | Agent tools evaluation framework: four-layer pytest suite (audit, golden dataset, schema contracts, live integration) for validating 19 agent tools |
 
 ### Solution Summary
 Living design artifact maintained by agents throughout the project lifecycle.

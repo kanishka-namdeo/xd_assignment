@@ -117,10 +117,11 @@ Keep instructions accurate and executable. A new engineer should be able to clon
 
 ### Pre-Planning Requirements
 
-Before writing any implementation plan, agents MUST complete two steps:
+Before writing any implementation plan, agents MUST complete the following steps:
 
 1. **Codebase scan**: Launch parallel `generalPurpose` subagents, each covering a distinct area relevant to the task (e.g., architecture, data models, API layer, UI, tests). Each subagent returns a summary of relevant files, patterns, contracts, and dependencies. Do not skip this step or do it sequentially — parallelism is required for speed.
 2. **Web search**: Run web searches for current best practices, latest library versions, API changes, and relevant patterns before planning. This is mandatory regardless of topic — do not skip based on staleness heuristics. Plans must be informed by current external knowledge, not just training data.
+3. **Thorough planning checklist**: Complete the systematic area checklist, dependency tracing, data flow walkthrough, and gap analysis pass defined in `.cursor/rules/thorough-planning.mdc`. This ensures all affected layers, services, and cross-cutting concerns are identified.
 
 ### Superpowers Workflow Behavior
 
@@ -162,6 +163,7 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 - **Proactive Web Search Guidelines**: Research-based web search guidelines for library docs, best practices, and version-specific APIs. See `.cursor/rules/web-search-guidelines.mdc` for when to search.
 - **PostgreSQL Patterns**: Async connection management with asyncpg/psycopg, query optimization, transaction patterns. See `.cursor/rules/postgres.mdc` for conventions.
 - **Process Management Safety**: Targeted process termination - never kill all processes of a type. Use port-based or PID-based killing. See `.cursor/rules/process-management.mdc` for safe patterns.
+- **Thorough Planning Checklist**: Before writing any implementation plan, agents MUST complete a systematic area checklist, dependency tracing, data flow walkthrough, and gap analysis pass. See `.cursor/rules/thorough-planning.mdc` for the full checklist and plan output requirements.
 
 ### Cursor Terminology Reference
 
@@ -185,6 +187,8 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models, stubs) and `utils/` (shared utilities).
 
+Services layer includes `AuthService` (login/session management), `ChatService` (orchestrator invocation, state persistence, interrupt handling), `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, and `ExtractionService`. Domain constants are centralized in `domain/constants/` (document_types, validation_rules, eligibility_rules).
+
 ### `ui/` - Streamlit Frontend
 
 Chat-based user interface for applicant interaction. Uses `st.navigation` with `app_pages/` directory (not `pages/` to avoid legacy conflicts). Implements 7-phase applicant flow: authentication (Phase 0), intake, document collection, processing, review, decision, enablement (Phases 1-6). Components: decision cards, document status, phase tracker, enablement section, chat input with file upload.
@@ -193,13 +197,15 @@ Chat-based user interface for applicant interaction. Uses `st.navigation` with `
 
 Unit, integration, and end-to-end tests mirroring the `src/` structure. ~241+ unit tests covering agents (174), gates (58), and domain (9). Integration tests: 4 populated, 3 stubs. E2E and system tests for full application flow validation. Root-level ad-hoc test scripts also present (e.g., `test_comprehensive_e2e.py`, `test_e2e_phases.py`, `test_fresh_e2e.py`, `test_session_recovery.py`, `test_upload.py`).
 
+Test mocking patterns: extraction tools mock infrastructure classes at `src.infrastructure.document_processing.*` (not at `src.agents.extraction.tools.*` since imports are local). Decision agent is mocked via `patch("src.agents.decision.graph.get_decision_agent", return_value=...)` (factory function pattern). Service-layer tests patch `src.services.auth_service.AuthService.login` and `src.services.chat_service.ChatService.handle_chat`.
+
 ### `evals/` - Agent Evaluation
 
-Evaluation framework for agent accuracy and quality. Distinct from unit tests: measures extraction accuracy, validation rule effectiveness, and eligibility scoring performance against ground truth. Currently placeholder — 3 evaluation test files are stubs awaiting implementation.
+Four-layer evaluation framework for agent tool correctness. Distinct from unit tests: evaluates tools against real documents, schema contracts, and ground-truth datasets. Layer 1 (audit) enumerates all 19 tools and maps coverage. Layer 2 (golden dataset) runs tools against 3 synthetic profiles with known expected decisions. Layer 3 (schema contracts) validates all tool outputs against Pydantic contracts and tests error handling on malformed input. Layer 4 (live integration) runs the full agent graph with real LLM calls via Langfuse trace validation. 50+ tests across all layers.
 
 ### `alembic/` - Database Migrations
 
-SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 2 migrations: initial schema (16 tables) and state_snapshot column addition. Tracks changes to applicant, document, application, and extraction tables.
+SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 3 migrations: initial schema (16 tables), state_snapshot column addition, and validation_confidence column addition. Tracks changes to applicant, document, application, and extraction tables.
 
 ### `data/` - Test Data Storage
 
