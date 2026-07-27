@@ -282,12 +282,10 @@ class TestLiveOrchestratorGraph:
         _skip_if_no_infrastructure()
 
         from src.agents.orchestrator.graph import build_orchestrator_graph
-        from src.agents.orchestrator.nodes import inject_llm_client
-        from src.infrastructure.llm.factory import get_llm_client
+        from src.agents.orchestrator.nodes import inject_llm_client, _get_llm_client
 
-        # Set up a real LLM client
-        llm_client = get_llm_client()
-        inject_llm_client(llm_client)
+        # Use the injected LLM client (set via inject_llm_client in conftest or env)
+        llm_client = _get_llm_client()
 
         # Build the graph with real infrastructure
         with patch("src.agents.orchestrator.graph.get_checkpointer"):
@@ -320,10 +318,11 @@ class TestLiveOrchestratorGraph:
         _skip_if_no_infrastructure()
 
         from src.agents.orchestrator.graph import build_orchestrator_graph
-        from src.agents.orchestrator.nodes import inject_llm_client
-        from src.infrastructure.llm.factory import get_llm_client
+        from src.agents.orchestrator.nodes import inject_llm_client, _get_llm_client
 
-        llm_client = get_llm_client()
+        llm_client = _get_llm_client()
+        if llm_client is None:
+            pytest.skip("No LLM client configured (set LLM_PROVIDER env var)")
         inject_llm_client(llm_client)
 
         with patch("src.agents.orchestrator.graph.get_checkpointer"):
@@ -357,10 +356,11 @@ class TestLiveSubgraphs:
         _skip_if_no_infrastructure()
 
         from src.agents.validation.graph import run_validation_agent
-        from src.agents.orchestrator.nodes import inject_llm_client
-        from src.infrastructure.llm.factory import get_llm_client
+        from src.agents.orchestrator.nodes import inject_llm_client, _get_llm_client
 
-        llm_client = get_llm_client()
+        llm_client = _get_llm_client()
+        if llm_client is None:
+            pytest.skip("No LLM client configured (set LLM_PROVIDER env var)")
         inject_llm_client(llm_client)
 
         state: ApplicantState = {
@@ -412,10 +412,11 @@ class TestLiveSubgraphs:
         _skip_if_no_infrastructure()
 
         from src.agents.eligibility.graph import get_eligibility_graph
-        from src.agents.orchestrator.nodes import inject_llm_client
-        from src.infrastructure.llm.factory import get_llm_client
+        from src.agents.orchestrator.nodes import inject_llm_client, _get_llm_client
 
-        llm_client = get_llm_client()
+        llm_client = _get_llm_client()
+        if llm_client is None:
+            pytest.skip("No LLM client configured (set LLM_PROVIDER env var)")
         inject_llm_client(llm_client)
 
         graph = get_eligibility_graph()
@@ -462,10 +463,11 @@ class TestLiveSubgraphs:
         _skip_if_no_infrastructure()
 
         from src.agents.decision.graph import get_decision_agent
-        from src.agents.orchestrator.nodes import inject_llm_client
-        from src.infrastructure.llm.factory import get_llm_client
+        from src.agents.orchestrator.nodes import inject_llm_client, _get_llm_client
 
-        llm_client = get_llm_client()
+        llm_client = _get_llm_client()
+        if llm_client is None:
+            pytest.skip("No LLM client configured (set LLM_PROVIDER env var)")
         inject_llm_client(llm_client)
 
         agent = get_decision_agent()
@@ -528,10 +530,11 @@ class TestLiveEndToEndPipeline:
         _skip_if_no_infrastructure()
 
         from src.agents.orchestrator.graph import build_orchestrator_graph
-        from src.agents.orchestrator.nodes import inject_llm_client
-        from src.infrastructure.llm.factory import get_llm_client
+        from src.agents.orchestrator.nodes import inject_llm_client, _get_llm_client
 
-        llm_client = get_llm_client()
+        llm_client = _get_llm_client()
+        if llm_client is None:
+            pytest.skip("No LLM client configured (set LLM_PROVIDER env var)")
         inject_llm_client(llm_client)
 
         state: ApplicantState = {
