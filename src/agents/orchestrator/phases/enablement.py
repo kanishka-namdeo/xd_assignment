@@ -104,8 +104,33 @@ async def enablement_node(state: ApplicantState) -> ApplicantState:
 
     # When resumed, check if user has follow-up questions
     if user_response and isinstance(user_response, str) and len(user_response.strip()) > 0:
-        # User has a follow-up question - stay in enablement
-        follow_up_response = f"Thank you for your question. Based on your profile and decision ({decision.replace('_', ' ')}), here's what I can tell you: {user_response}"
+        # User has a follow-up question - generate a personalized response using LLM
+        support_category = applicant_info.get("support_category", "general")
+        family_size = applicant_info.get("family_size", 1)
+        housing_status = applicant_info.get("housing_status", "unknown")
+        employment_status = applicant_info.get("employment_status", "unknown")
+
+        follow_up_context = (
+            f"Decision: {decision.replace('_', ' ').title()}\n"
+            f"Support category: {support_category}\n"
+            f"Family size: {family_size}\n"
+            f"Housing status: {housing_status}\n"
+            f"Employment status: {employment_status}\n"
+            f"Available recommendations: {recommendation_text[:200]}\n"
+            f"User's follow-up question: {user_response}"
+        )
+
+        follow_up_prompt = (
+            "You are a compassionate case worker answering a follow-up question "
+            "from an applicant about their application decision and next steps. "
+            "Use the applicant's profile and the available recommendations to provide "
+            "a helpful, personalized answer. Be empathetic and specific."
+        )
+
+        follow_up_response = await _generate_llm_response(
+            follow_up_prompt, follow_up_context,
+            f"Thank you for your question. Based on your situation and the {decision.replace('_', ' ')} decision, I'm here to help guide you through the next steps."
+        )
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.info("node_exit", node="enablement", duration_ms=round(duration_ms, 2), recommendation_count=len(recommendations), decision=decision, follow_up=True)
         return {

@@ -217,11 +217,18 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
     
     # No new documents - this is the first time or user didn't upload anything
     # Call interrupt to ask for documents
-    response = (
-        f"Thank you for uploading your documents. "
-        f"We still need the following required document(s): {missing_display}. "
-        f"Please upload them by attaching the files to your message."
-    )
+    if uploaded_files:
+        response = (
+            f"We've received your files. "
+            f"We still need the following required document(s): {missing_display}. "
+            f"Please upload them by attaching the files to your message."
+        )
+    else:
+        response = (
+            f"I understand you need some help. To continue with your application, "
+            f"we still need the following required document(s): {missing_display}. "
+            f"Please upload them by attaching the files to your message."
+        )
     
     interrupt({
         "question": f"We still need the following required document(s): {missing_display}. Please upload them by attaching the files to your message.",

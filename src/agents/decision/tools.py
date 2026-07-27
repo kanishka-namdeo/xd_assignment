@@ -200,37 +200,61 @@ def decision_explanation_tool(
     support_category = applicant_context.get("support_category", "general")
     family_size = applicant_context.get("family_size", 1)
 
+    def _score_label(score: float) -> str:
+        if score >= 0.80:
+            return "very strong"
+        if score >= 0.60:
+            return "strong"
+        if score >= 0.40:
+            return "moderate"
+        if score >= 0.20:
+            return "below average"
+        return "low"
+
+    def _confidence_label(confidence: float) -> str:
+        if confidence >= 0.90:
+            return "very high"
+        if confidence >= 0.80:
+            return "high"
+        if confidence >= 0.70:
+            return "moderate"
+        return "below the required threshold"
+
+    eligibility_label = _score_label(eligibility_score)
+    confidence_label = _confidence_label(validation_confidence)
+
     if decision == "approved":
         explanation = (
-            f"Your application has been approved. Based on your eligibility score "
-            f"of {eligibility_score:.2f} and validated documentation, you qualify "
-            f"for {support_category} support. "
+            f"Your application has been approved. Your eligibility profile is "
+            f"{eligibility_label} and your documentation has been validated with "
+            f"{confidence_label} confidence. You qualify for {support_category} support. "
             f"You will receive assistance tailored to your household of {family_size}."
         )
         key_factors = [
-            f"Strong eligibility score: {eligibility_score:.2f}",
-            f"High validation confidence: {validation_confidence:.2f}",
+            f"Eligibility profile: {eligibility_label}",
+            f"Document validation: {confidence_label} confidence",
             "All required documents validated",
         ]
     elif decision == "soft_decline":
         explanation = (
             f"Unfortunately, your application cannot be approved at this time. "
-            f"Your eligibility score of {eligibility_score:.2f} is below the threshold. "
-            f"You may reapply when your circumstances change."
+            f"Your eligibility profile is currently {eligibility_label}, which is "
+            f"below the required threshold. You may reapply when your circumstances change."
         )
         key_factors = [
-            f"Eligibility score below threshold: {eligibility_score:.2f}",
+            f"Eligibility profile: {eligibility_label} (below threshold)",
             "Consider improving income stability or reducing debt",
         ]
     else:
         explanation = (
-            f"Your application requires additional review. While your eligibility score "
-            f"of {eligibility_score:.2f} shows potential, some aspects need verification. "
+            f"Your application requires additional review. Your eligibility profile is "
+            f"{eligibility_label}, which shows potential, but some aspects of your "
+            f"documentation need further verification (confidence: {confidence_label}). "
             f"A caseworker will contact you within 5 business days."
         )
         key_factors = [
-            f"Eligibility score: {eligibility_score:.2f}",
-            f"Validation confidence: {validation_confidence:.2f}",
+            f"Eligibility profile: {eligibility_label}",
+            f"Document validation confidence: {confidence_label}",
             "Additional documentation or clarification needed",
         ]
 

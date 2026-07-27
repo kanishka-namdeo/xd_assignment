@@ -34,7 +34,7 @@ async def review_node(state: ApplicantState) -> ApplicantState:
     previous_doc_count = len([d for d in uploaded_documents if d.get("file_path") in uploaded_files])
     if state.get("new_documents_uploaded", False) or len(uploaded_files) > previous_doc_count:
         response = (
-            "New documents detected. Returning to document collection to process them."
+            "Thank you for the new documents. Let me review them and get back to you shortly."
         )
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.info("node_exit", node="review", duration_ms=round(duration_ms, 2), next_phase="document_collection", new_documents=True)

@@ -163,10 +163,13 @@ class TestDecisionExplanationTool:
         })
 
         assert "approved" in result["explanation"].lower()
-        assert "0.78" in result["explanation"]
+        # Check for human-readable labels instead of raw scores
+        assert "strong" in result["explanation"].lower()
+        assert "very high" in result["explanation"].lower()
         assert result["support_category"] == "divorced"
         assert len(result["key_factors"]) == 3
-        assert "0.78" in result["key_factors"][0]
+        # Key factors should use labels, not raw numbers
+        assert "strong" in result["key_factors"][0].lower()
 
     def test_explanation_soft_decline(self):
         """Generate explanation for soft_decline decision."""
@@ -181,7 +184,8 @@ class TestDecisionExplanationTool:
         })
 
         assert "cannot be approved" in result["explanation"].lower()
-        assert "0.30" in result["explanation"]
+        # Check for human-readable labels instead of raw scores
+        assert "below average" in result["explanation"].lower()
         assert result["support_category"] == "abandoned"
         assert len(result["key_factors"]) == 2
 
@@ -198,7 +202,8 @@ class TestDecisionExplanationTool:
         })
 
         assert "additional review" in result["explanation"].lower()
-        assert "0.55" in result["explanation"]
+        # Check for human-readable labels instead of raw scores
+        assert "moderate" in result["explanation"].lower()
         assert result["support_category"] == "unknown_parentage"
         assert len(result["key_factors"]) == 3
 
