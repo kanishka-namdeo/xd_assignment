@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -91,7 +92,6 @@ def generate_account(seed: int | None = None, output_dir: str | None = None, ver
     if verbose:
         log_verbose("generate_account", cmd=" ".join(cmd))
 
-    import subprocess
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     latency = (time.perf_counter() - start) * 1000
 
@@ -215,28 +215,28 @@ async def upload_docs(client: httpx.AsyncClient, app_id: str, profile_dir: str, 
     if verbose:
         log_verbose("upload_docs", app_id=app_id, file_count=len(files))
 
-    resp = await client.post(
-        f"{BASE_URL}/applications/{app_id}/chat",
-        data={"text": "Here are my supporting documents."},
-        files=files,
-    )
-    latency = (time.perf_counter() - start) * 1000
+    try:
+        resp = await client.post(
+            f"{BASE_URL}/applications/{app_id}/chat",
+            data={"text": "Here are my supporting documents."},
+            files=files,
+        )
+        latency = (time.perf_counter() - start) * 1000
 
-    # Close file handles
-    for _, (_, _, f) in files:
-        f.close()
+        if resp.status_code != 200:
+            if verbose:
+                log_verbose("upload_docs_failed", status=resp.status_code, error=resp.text[:200])
+            output("upload-docs", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
+            return {}
 
-    if resp.status_code != 200:
+        data = resp.json()
         if verbose:
-            log_verbose("upload_docs_failed", status=resp.status_code, error=resp.text[:200])
-        output("upload-docs", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
-        return {}
-
-    data = resp.json()
-    if verbose:
-        log_verbose("upload_docs_ok", phase=data.get("phase"), docs=len(data.get("uploaded_documents", [])))
-    output("upload-docs", True, data=data, latency_ms=latency)
-    return data
+            log_verbose("upload_docs_ok", phase=data.get("phase"), docs=len(data.get("uploaded_documents", [])))
+        output("upload-docs", True, data=data, latency_ms=latency)
+        return data
+    finally:
+        for _, (_, _, f) in files:
+            f.close()
 
 
 async def process(client: httpx.AsyncClient, app_id: str, timeout_seconds: int = 90, verbose: bool = False) -> dict:
