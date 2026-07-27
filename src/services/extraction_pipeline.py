@@ -178,7 +178,7 @@ async def persist_results(state: dict[str, Any]) -> None:
                     try:
                         await store_extraction_data(
                             er.get("document_type", "unknown"),
-                            _UUID(er["document_id"]) if isinstance(er["document_id"], str) else er["document_id"],
+                            UUID(er["document_id"]) if isinstance(er["document_id"], str) else er["document_id"],
                             er,
                             EmiratesIDRepository(db),
                             BankStatementRepository(db),
@@ -195,7 +195,7 @@ async def persist_results(state: dict[str, Any]) -> None:
                         )
             try:
                 await ValidationService(db).validate_cross_document(
-                    applicant_id=_UUID(applicant_id) if applicant_id else uuid4(),
+                    applicant_id=UUID(applicant_id) if applicant_id else uuid4(),
                     support_category=support_category or None,
                 )
             except Exception as e:
@@ -237,9 +237,9 @@ async def persist_results(state: dict[str, Any]) -> None:
             if er.get("status") == "success" and er.get("document_id"):
                 try:
                     await lr.link_document_to_applicant(
-                        applicant_id=_UUID(applicant_id) if applicant_id else uuid4(),
+                        applicant_id=UUID(applicant_id) if applicant_id else uuid4(),
                         document=DocumentNode(
-                            id=_UUID(str(er["document_id"])),
+                            id=UUID(str(er["document_id"])),
                             document_type=er.get("document_type", "unknown"),
                         ),
                     )
