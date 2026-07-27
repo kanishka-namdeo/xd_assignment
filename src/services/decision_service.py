@@ -125,9 +125,24 @@ class DecisionService:
         """Format a decision for UI display.
 
         Wraps the agent-layer decision_formatting_tool to keep the service
-        layer from importing agent tools directly.
+        layer from importing agent tools directly. Extracts clean explanation
+        from JSON strings when the LLM returns structured output.
         """
+        import json
+
         from src.agents.decision.tools import decision_formatting_tool
+
+        explanation = decision_data.get("explanation", "")
+        if isinstance(explanation, str):
+            try:
+                parsed = json.loads(explanation)
+                if isinstance(parsed, dict) and "explanation" in parsed:
+                    decision_data["explanation"] = parsed["explanation"]
+                    if "decision" in parsed and not decision_data.get("decision"):
+                        decision_data["decision"] = parsed["decision"]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         return decision_formatting_tool.invoke(decision_data)
 
     def _apply_decision_rules(

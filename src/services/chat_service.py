@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.schemas.chat import ChatResponse, InterruptData, UploadedDocument
@@ -89,6 +90,24 @@ class ChatService:
         # Invoke orchestrator with exception safety
         try:
             result = await run_orchestrator(graph_input, langfuse_client=langfuse_client)
+        except ValidationError as e:
+            duration_ms = (time.perf_counter() - start_ms) * 1000
+            logger.exception(
+                "validation_error_in_orchestrator",
+                application_id=application_id,
+                phase=application.current_phase,
+                error_count=len(e.errors()),
+                duration_ms=round(duration_ms, 2),
+            )
+            error_details = "; ".join(f"{err.get('loc', ['unknown'])}: {err.get('msg', 'validation failed')}" for err in e.errors())
+            return ChatResponse(
+                message=f"Validation error occurred: {error_details}",
+                phase=previous_phase,
+                uploaded_documents=[],
+                decision=None,
+                decision_card=None,
+                interrupt=None,
+            )
         except Exception as e:
             duration_ms = (time.perf_counter() - start_ms) * 1000
             logger.exception(
@@ -123,14 +142,26 @@ class ChatService:
         if result.get("__interrupt__"):
             interrupt_value = result["__interrupt__"][0].value if isinstance(result["__interrupt__"], list) else result["__interrupt__"].value
             if isinstance(interrupt_value, dict):
-                interrupt_data = InterruptData(
-                    question=interrupt_value.get("question", ""),
-                    phase=interrupt_value.get("phase", ""),
-                    missing_fields=interrupt_value.get("missing_fields"),
-                    missing_documents=interrupt_value.get("missing_documents"),
-                    discrepancies=interrupt_value.get("discrepancies"),
-                    recommendations=interrupt_value.get("recommendations"),
-                )
+                try:
+                    interrupt_data = InterruptData(
+                        question=interrupt_value.get("question", ""),
+                        phase=interrupt_value.get("phase", ""),
+                        missing_fields=interrupt_value.get("missing_fields"),
+                        missing_documents=interrupt_value.get("missing_documents"),
+                        discrepancies=interrupt_value.get("discrepancies"),
+                        recommendations=interrupt_value.get("recommendations"),
+                    )
+                except ValidationError as e:
+                    logger.warning(
+                        "interrupt_data_validation_failed",
+                        application_id=application_id,
+                        error_count=len(e.errors()),
+                        errors=[err.get("msg") for err in e.errors()],
+                    )
+                    interrupt_data = InterruptData(
+                        question=interrupt_value.get("question", ""),
+                        phase=interrupt_value.get("phase", "unknown"),
+                    )
             result["_pending_interrupt"] = True
         else:
             result["_pending_interrupt"] = False

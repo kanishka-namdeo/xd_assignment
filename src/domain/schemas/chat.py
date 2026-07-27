@@ -22,7 +22,7 @@ class InterruptData(BaseModel):
     missing_fields: list[str] | None = None
     missing_documents: list[str] | None = None
     discrepancies: list[dict] | None = None
-    recommendations: list[str] | None = None
+    recommendations: list[dict] | list[str] | None = None
 
 
 class ChatResponse(BaseModel):
