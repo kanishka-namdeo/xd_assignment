@@ -12,6 +12,7 @@ from ui.components.document_status import (
 from ui.components.accessibility_controls import render_accessibility_controls
 from ui.components.phase_guidance import render_phase_guidance
 from ui.components.phase_tracker import render_phase_tracker
+from ui.components.help_panel import render_help_panel
 from ui.fragments.chat_area import render_chat_area
 
 logger = structlog.get_logger(__name__)
@@ -94,6 +95,8 @@ def _render_sidebar() -> None:
             st.session_state.get("uploaded_documents"),
             support_category=support_category,
         )
+
+        render_help_panel()
 
         st.markdown("---")
 
