@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
+from src.agents.checkpointer import get_checkpointer_manager
 from src.api.middleware import RequestLoggingMiddleware
 from src.api.router import router
 from src.config import settings
@@ -48,7 +49,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await conn.run_sync(Base.metadata.create_all)
 
+    # Start checkpoint TTL cleanup task
+    checkpointer_manager = get_checkpointer_manager()
+    await checkpointer_manager.start_cleanup_task()
+    app.state.checkpointer_manager = checkpointer_manager
+
     yield
+
+    # Stop checkpoint cleanup task gracefully
+    if hasattr(app.state, "checkpointer_manager"):
+        await app.state.checkpointer_manager.stop_cleanup_task()
 
     if hasattr(app.state, "langfuse"):
         app.state.langfuse.shutdown()

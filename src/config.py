@@ -52,5 +52,9 @@ class Settings(BaseSettings):
     QDRANT_PREFER_GRPC: bool = True
     QDRANT_GRPC_PORT: int = 6334
 
+    # Checkpoint TTL
+    CHECKPOINT_TTL_DAYS: int = 30  # Delete checkpoints older than this
+    CHECKPOINT_CLEANUP_INTERVAL_MINUTES: int = 60  # Run cleanup every hour
+
 
 settings = Settings()
