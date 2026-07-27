@@ -10,6 +10,7 @@ import structlog
 from langgraph.types import interrupt
 
 from src.agents.state import ApplicantState
+from src.utils.state_size import check_state_size
 
 logger = structlog.get_logger(__name__)
 
@@ -152,11 +153,14 @@ async def intake_node(state: ApplicantState) -> dict:
             next_phase="document_collection", support_category=support_category,
             fields_collected=len(INTAKE_FIELDS), fields_missing=0,
         )
-        return {
+        result = {
             "messages": [{"role": "assistant", "content": response}],
             "current_phase": "document_collection",
             "applicant_info": applicant_info,
+            "support_category": applicant_info.get("support_category"),
         }
+        check_state_size(state, node_name="intake", application_id=state.get("application_id"))
+        return result
 
     # Missing fields - use interrupt() to pause and ask the user
     next_missing = missing_fields[:3]
@@ -193,8 +197,10 @@ async def intake_node(state: ApplicantState) -> dict:
         fields_collected=len(INTAKE_FIELDS) - len(missing_fields), fields_missing=len(missing_fields),
     )
 
-    return {
+    result = {
         "messages": [{"role": "assistant", "content": f"Thank you for the information. To continue, please provide your {field_str}."}],
         "current_phase": "intake",
         "applicant_info": applicant_info,
     }
+    check_state_size(state, node_name="intake", application_id=state.get("application_id"))
+    return result
