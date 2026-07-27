@@ -7,10 +7,13 @@ against a real PostgreSQL database.
 import asyncio
 import hashlib
 import sys
+import time
 import uuid
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+
+import structlog
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -50,6 +53,10 @@ from src.infrastructure.db.repositories import (
     ProcessingQueueRepository,
     CrossDocumentValidationRepository,
 )
+from src.infrastructure.observability.logging import configure_logging
+
+configure_logging()
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -81,13 +88,12 @@ def fail(name: str, detail: str):
 async def run_tests():
     global passed, failed
 
+    t0 = time.time()
+    logger.info("db_layer_tests_started")
+
     settings = Settings()
     engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    print("\n" + "=" * 60)
-    print("DATABASE LAYER TESTS")
-    print("=" * 60)
 
     # ───────────────────────────────────────────────────────
     # 1. Model instantiation tests (all 16 models)
@@ -847,18 +853,19 @@ async def run_tests():
 
     await engine.dispose()
 
-    # ───────────────────────────────────────────────────────
-    # Summary
-    # ───────────────────────────────────────────────────────
     total = passed + failed
-    print("\n" + "=" * 60)
-    print(f"RESULTS: {passed}/{total} passed, {failed}/{total} failed")
-    print("=" * 60)
+    duration_ms = (time.time() - t0) * 1000
+    logger.info(
+        "db_layer_tests_completed",
+        total_tests=total,
+        passed=passed,
+        failed=failed,
+        duration_ms=round(duration_ms, 1),
+    )
 
     if errors:
-        print("\nFailures:")
         for name, detail in errors:
-            print(f"  - {name}: {detail}")
+            logger.error("db_layer_test_failure", test_name=name, detail=detail)
 
     return failed == 0
 

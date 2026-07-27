@@ -126,7 +126,7 @@ class XLSXExtractor:
                     df = pd.DataFrame(data)
                 
                 # Handle merged cells by forward-filling
-                df = df.fillna(method="ffill")
+                df = df.ffill()
                 
                 result[sheet] = df
             

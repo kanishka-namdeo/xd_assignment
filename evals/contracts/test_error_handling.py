@@ -1,6 +1,9 @@
 """Layer 3: Error handling — tools must not raise on malformed input."""
 
+import time
+
 import pytest
+import structlog
 
 from src.agents.extraction.tools import (
     ocr_extract_tool,
@@ -29,6 +32,8 @@ from src.agents.decision.tools import (
     enablement_recommendation_tool,
     decision_formatting_tool,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 MALFORMED_INPUTS = {
@@ -130,9 +135,28 @@ def test_tool_handles_malformed_input(tool_name, malformed_inputs):
         pytest.fail(f"Tool {tool_name} not found")
 
     for i, bad_input in enumerate(malformed_inputs):
+        start = time.perf_counter()
         try:
             result = tool.invoke(bad_input)
+            duration_ms = (time.perf_counter() - start) * 1000
+
+            logger.debug(
+                "error_handling_test_passed",
+                tool=tool_name,
+                input_index=i,
+                duration_ms=round(duration_ms, 2),
+                has_error_key="error" in result,
+            )
         except Exception as e:
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.error(
+                "error_handling_test_failed",
+                tool=tool_name,
+                input_index=i,
+                duration_ms=round(duration_ms, 2),
+                exception_type=type(e).__name__,
+            )
+            logger.exception("error_handling_test_exception")
             pytest.fail(f"{tool_name} raised {type(e).__name__} on malformed input {i}: {e}")
 
         # Result should be a dict (possibly with "error" key)

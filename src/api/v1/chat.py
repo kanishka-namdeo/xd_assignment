@@ -76,7 +76,8 @@ async def chat(
     text: str = Form(...),
     files: list[UploadFile] = File(default=[]),
 ) -> ChatResponse:
-    logger.info("request_received", application_id=application_id, endpoint="chat")
+    start_time = time.perf_counter()
+    logger.info("request_received", application_id=application_id, endpoint="chat", file_count=len(files))
 
     langfuse_client = getattr(fastapi_request.app.state, "langfuse", None)
 
@@ -86,21 +87,29 @@ async def chat(
         upload_dir = UPLOAD_DIR / application_id
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        for upload in files:
+        logger.info("file_upload_start", application_id=application_id, file_count=len(files))
+        for idx, upload in enumerate(files):
             if upload.filename is None:
                 continue
             dest = upload_dir / upload.filename
             content = await upload.read()
             dest.write_bytes(content)
             file_paths.append(str(dest))
-            logger.info("file_saved", application_id=application_id, filename=upload.filename, size_bytes=len(content))
+            logger.info("file_saved", application_id=application_id, filename=upload.filename, size_bytes=len(content), file_index=idx+1)
+        logger.info("file_upload_complete", application_id=application_id, files_saved=len(file_paths))
 
-    return await chat_service.handle_chat(
+    logger.info("chat_service_invoke", application_id=application_id, file_count=len(file_paths))
+    response = await chat_service.handle_chat(
         application_id=application_id,
         text=text,
         file_paths=file_paths,
         langfuse_client=langfuse_client,
     )
+    
+    elapsed = (time.perf_counter() - start_time) * 1000
+    logger.info("chat_service_complete", application_id=application_id, elapsed_ms=elapsed)
+    
+    return response
 
 
 async def _stream_generator(

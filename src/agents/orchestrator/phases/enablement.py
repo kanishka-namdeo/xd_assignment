@@ -52,7 +52,7 @@ async def enablement_node(state: ApplicantState) -> ApplicantState:
         })
         tool_recommendations = tool_result.get("recommendations", [])
         recommendations = [
-            f"{r.get('title', '')}: {r.get('description', '')}"
+            {"title": r.get("title", ""), "description": r.get("description", "")}
             for r in tool_recommendations
         ]
         logger.info(
@@ -65,21 +65,21 @@ async def enablement_node(state: ApplicantState) -> ApplicantState:
         # Fallback to basic recommendations
         if decision == "approved":
             recommendations = [
-                "Your support benefits will be processed within 5-7 business days.",
-                "A case worker will be assigned to your file.",
+                {"title": "Benefit Processing", "description": "Your support benefits will be processed within 5-7 business days."},
+                {"title": "Case Worker Assignment", "description": "A case worker will be assigned to your file."},
             ]
         elif decision == "manual_review":
             recommendations = [
-                "Your application requires additional review by our team.",
-                "Please ensure all your documents are complete and accurate.",
+                {"title": "Additional Review", "description": "Your application requires additional review by our team."},
+                {"title": "Document Verification", "description": "Please ensure all your documents are complete and accurate."},
             ]
         else:
             recommendations = [
-                "Your application does not currently meet the eligibility criteria.",
-                "You may reapply if your circumstances change.",
+                {"title": "Eligibility Status", "description": "Your application does not currently meet the eligibility criteria."},
+                {"title": "Reapplication", "description": "You may reapply if your circumstances change."},
             ]
 
-    recommendation_text = " ".join(recommendations)
+    recommendation_text = " ".join(f"{r.get('title', '')}: {r.get('description', '')}" for r in recommendations)
 
     response = (
         f"Your application process is complete. "

@@ -1,8 +1,7 @@
 # ====================
 # IDE / Editor
 # ====================
-.cursor/
-.superpowers/
+
 .idea/
 .vscode/
 *.sublime-*
@@ -142,6 +141,13 @@ allure-report/
 /test_chat*.py
 /test_flow*.py
 /test_graph.py
+run_server.py
+
+# ====================
+# Test artifacts
+# ====================
+test_output.txt
+screenshots/
 
 # ====================
 # Generated test data
@@ -149,3 +155,5 @@ allure-report/
 data/test_applicants/
 data/fresh_accounts/
 evals/data/
+
+.superpowers/

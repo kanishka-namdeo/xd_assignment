@@ -3,16 +3,21 @@
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.config import settings
 from src.infrastructure.db.session import Base
+
+
+logger = structlog.get_logger(__name__)
 
 
 @pytest.fixture(scope="session")
@@ -21,33 +26,44 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+    logger.debug("event_loop_closed")
 
 
 @pytest.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create test database session."""
+    start = time.monotonic()
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=False,
         pool_pre_ping=True,
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     async_session = sessionmaker(
         engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    
+
     async with async_session() as session:
         yield session
-    
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    
-    await engine.dispose()
+
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    except Exception:
+        logger.exception("db_session_teardown_failed")
+        raise
+    finally:
+        await engine.dispose()
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.info(
+            "db_session_closed",
+            duration_ms=round(duration_ms, 2),
+        )
 
 
 @pytest.fixture
@@ -92,6 +108,7 @@ def data_dir():
 @pytest.fixture
 def synthetic_profiles(data_dir):
     """Load all synthetic applicant profiles from data directory."""
+    start = time.monotonic()
     profiles = {}
     if data_dir.exists():
         for profile_dir in data_dir.iterdir():
@@ -100,6 +117,13 @@ def synthetic_profiles(data_dir):
                 if profile_file.exists():
                     with open(profile_file, encoding="utf-8") as f:
                         profiles[profile_dir.name] = json.load(f)
+    duration_ms = (time.monotonic() - start) * 1000
+    logger.info(
+        "synthetic_profiles_loaded",
+        profile_count=len(profiles),
+        profiles=list(profiles.keys()),
+        duration_ms=round(duration_ms, 2),
+    )
     return profiles
 
 
@@ -135,8 +159,17 @@ def streamlake_settings():
     """Override settings to use StreamLake provider."""
     original_provider = settings.LLM_PROVIDER
     settings.LLM_PROVIDER = "streamlake"
-    yield settings
-    settings.LLM_PROVIDER = original_provider
+    try:
+        yield settings
+    except Exception:
+        logger.exception("streamlake_settings_teardown_failed")
+        raise
+    finally:
+        settings.LLM_PROVIDER = original_provider
+        logger.debug(
+            "streamlake_settings_restored",
+            provider=original_provider,
+        )
 
 
 @pytest.fixture

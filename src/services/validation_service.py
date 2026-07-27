@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.gates.completeness import validate_completeness
 from src.agents.gates.document_integrity import validate_document_integrity
+from src.domain.constants.document_types import REQUIRED_DOCUMENTS
 from src.infrastructure.db.repositories.document_repo import DocumentRepository
 from src.infrastructure.db.repositories.extraction_repo import (
     ApplicationFormRepository,
@@ -336,15 +337,9 @@ class ValidationService:
 
     def _get_required_documents(self, support_category: str | None) -> list[str]:
         """Get list of required documents for a support category."""
-        required = {
-            "divorced": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-            "abandoned": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-            "unknown_parentage": ["emirates_id", "bank_statement", "application_form"],
-            "health_disability": ["emirates_id", "bank_statement", "credit_report", "application_form", "resume"],
-        }
         if support_category is None:
             return ["emirates_id", "bank_statement", "credit_report", "application_form"]
-        return required.get(support_category.lower(), ["emirates_id", "bank_statement", "credit_report", "application_form"])
+        return REQUIRED_DOCUMENTS.get(support_category.lower(), ["emirates_id", "bank_statement", "credit_report", "application_form"])
 
     async def _fetch_extracted_data(self, document) -> dict:
         """Fetch extracted data for a document from the appropriate repository."""

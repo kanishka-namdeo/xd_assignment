@@ -69,6 +69,11 @@ Services MUST NOT implement document-type-specific logic inline. Instead:
 - Call `domain/cross_document.py` for comparison algorithms
 - Delegate persistence, embeddings, lineage to infrastructure via repositories
 
+**Service inventory** (all class-based with `__init__(session: AsyncSession)`):
+- `AuthService` (`auth_service.py`): Login/session management, applicant/application creation
+- `ChatService` (`chat_service.py`): Orchestrator invocation, state persistence, interrupt handling, decision persistence
+- `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, `ExtractionService`
+
 ### ORM Model Directory at Scale
 When a model module exceeds 5 models with wide schemas, use a subdirectory:
 - `infrastructure/db/models/` for small modules (1-4 models)
@@ -124,7 +129,36 @@ External service integrations in `src/infrastructure/`:
 | `vector/` | Qdrant vector database (document embeddings) |
 | `extraction_persistence.py` | Extraction result persistence helpers |
 
-**Note**: `graph_db/` and `vector_db/` are legacy stubs. Use `graph/` and `vector/` instead.
+**Note**: `graph_db/` and `vector_db/` were legacy stubs and have been removed. Active modules are `graph/` and `vector/`.
+
+### Utilities Layer
+Shared utilities in `src/utils/`:
+
+| Module | Purpose |
+|--------|---------|
+| `circuit_breaker.py` | Circuit breaker pattern for graceful degradation of subgraph invocations |
+| `retry.py` | `@retry_transient` decorator with exponential backoff (1s, 2s, 4s) for transient failures |
+| `state_size.py` | State size estimation and monitoring; warns when state exceeds `STATE_SIZE_WARNING_KB` threshold |
+| `error_classifier.py` | Error classification (`ErrorType` enum: TRANSIENT, BUSINESS_RULE, LLM_ERROR, PROGRAMMING) |
+| `tool_helpers.py` | Shared helper functions for agent tools |
+
+**Circuit Breaker**: Opens after N failures, blocks calls until recovery timeout, then tests with single call. Used in `processing.py` and `decision.py` to prevent cascading failures when subgraphs consistently fail.
+
+### Checkpointer Infrastructure
+Shared checkpointer factory in `src/agents/checkpointer.py`:
+- `get_checkpointer()` — async singleton factory returning `AsyncPostgresSaver` shared by all graphs
+- `CheckpointerManager` — manages background TTL cleanup task with configurable interval
+- `get_checkpointer_manager()` — returns singleton manager instance
+- TTL cleanup runs periodically, deleting checkpoints older than `CHECKPOINT_TTL_DAYS` (default 30)
+- Cleanup task started/stopped via FastAPI lifespan in `src/main.py`
+
+### Streaming Support
+`src/services/agent_runner.py` provides two execution modes:
+- `run()` — blocking `ainvoke()` for standard request/response
+- `run_streaming()` — async generator using `astream()` that yields phase transitions and key events (extraction_complete, validation_complete, decision_reached, eligibility_scored, interrupt)
+
+### Health Check Endpoint
+`/api/v1/health/langgraph` verifies PostgreSQL connection and all LangGraph graph compilation. Returns `healthy`, `degraded`, or `unhealthy` status with component details.
 
 ### Configuration
 - Global config in `config.py` using pydantic-settings `BaseSettings`
@@ -133,49 +167,7 @@ External service integrations in `src/infrastructure/`:
 - Embeddings always local via Ollama
 
 ### Logging Conventions
-All modules must follow structured logging conventions using `structlog`.
-
-**Logger Creation**
-- Use `structlog.get_logger(__name__)` for named loggers in all modules
-- Never use bare `structlog.get_logger()` without `__name__`
-- Never use stdlib `logging.getLogger()` -- use structlog throughout
-
-**Event Naming**
-- Event names use snake_case: `"document_extracted"`, `"node_enter"`, `"request_complete"`
-- Log events, not sentences: `"auth_attempt"`, not `"User attempted authentication"`
-
-**Required Context**
-- Always include relevant IDs: `application_id`, `applicant_id`, `document_id`, `request_id`
-- Always include `duration_ms` for timed operations (service calls, DB queries, LLM calls)
-- Always include counts and status codes where relevant
-
-**PII Safety**
-- Never log PII values directly (identity numbers, names, emails, phone numbers, account numbers)
-- Rely on the PII redaction processor in `src/infrastructure/observability/logging.py`
-- Log only IDs, counts, statuses, and derived values
-
-**Error Handling**
-- Use `logger.exception()` in except blocks -- it captures the full traceback
-- Never use bare `print()` for errors
-- Log error context: what operation failed, what IDs were involved, what the error was
-
-**Timing Requirements**
-- All service methods must log `duration_ms` for their primary operations
-- All DB repository methods must log `duration_ms`
-- All LLM calls must log `duration_ms` and token counts
-- All document processing operations must log `duration_ms`
-
-**Log Levels**
-- `DEBUG`: Per-check results, individual field validations, detailed operation steps
-- `INFO`: Operation start/complete, state transitions, decisions made
-- `WARNING`: Recoverable issues, fallback paths taken, missing optional data
-- `ERROR`: Operation failures, exceptions caught
-
-**Central Configuration**
-- Logging is configured centrally in `src/infrastructure/observability/logging.py`
-- Call `configure_logging()` from the FastAPI lifespan context manager
-- Output format: JSON in production (`LOG_FORMAT=json`), colored console in development (`LOG_FORMAT=console`)
-- Control level with `LOG_LEVEL` env var (default: `INFO`)
+Logging conventions are defined in `.cursor/rules/logging-practices.mdc`. All modules must follow structured logging with `structlog`, PII redaction, and `duration_ms` timing.
 
 ### Data Generation Module
 Synthetic data generation for testing and development. All generators produce schema-compliant output with cross-document consistency.

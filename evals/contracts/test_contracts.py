@@ -1,6 +1,9 @@
 """Layer 3: Schema contract conformance tests."""
 
+import time
+
 import pytest
+import structlog
 from src.agents.extraction.tools import (
     ocr_extract_tool,
     pdf_parse_tool,
@@ -29,6 +32,8 @@ from src.agents.decision.tools import (
     decision_formatting_tool,
 )
 from evals.contracts.schemas import CONTRACT_MAP
+
+logger = structlog.get_logger(__name__)
 
 TOOLS_UNDER_TEST = {
     "ocr_extract_tool": lambda: ocr_extract_tool.invoke({"file_path": "/nonexistent.png"}),
@@ -104,13 +109,33 @@ def test_tool_output_conforms_to_contract(tool_name, invoke_fn):
     if contract_cls is None:
         pytest.fail(f"No contract defined for {tool_name}")
 
+    start = time.perf_counter()
     result = invoke_fn()
+    duration_ms = (time.perf_counter() - start) * 1000
+
     if not isinstance(result, dict):
+        logger.error(
+            "contract_validation_failed",
+            tool=tool_name,
+            duration_ms=round(duration_ms, 2),
+            reason="non_dict_result",
+        )
         pytest.fail(f"{tool_name} returned non-dict: {type(result)}")
 
     # Error responses are allowed to deviate from contract
     if "error" in result and len(result) <= 2:
+        logger.debug(
+            "contract_validation_skipped",
+            tool=tool_name,
+            duration_ms=round(duration_ms, 2),
+            reason="error_response",
+        )
         return
 
     contract = contract_cls(**result)
+    logger.info(
+        "contract_validation_passed",
+        tool=tool_name,
+        duration_ms=round(duration_ms, 2),
+    )
     assert contract is not None

@@ -9,6 +9,7 @@ from langgraph.types import interrupt
 
 from src.agents.orchestrator.di import _make_assistant_message
 from src.agents.state import ApplicantState
+from src.utils.state_size import check_state_size
 
 logger = structlog.get_logger(__name__)
 
@@ -37,6 +38,7 @@ async def review_node(state: ApplicantState) -> ApplicantState:
         )
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.info("node_exit", node="review", duration_ms=round(duration_ms, 2), next_phase="document_collection", new_documents=True)
+        check_state_size(state, node_name="review", application_id=state.get("applicant_id"))
         return {
             "messages": [_make_assistant_message(response)],
             "current_phase": "document_collection",
@@ -54,6 +56,7 @@ async def review_node(state: ApplicantState) -> ApplicantState:
         )
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.info("node_exit", node="review", duration_ms=round(duration_ms, 2), next_phase="decision", discrepancy_count=0)
+        check_state_size(state, node_name="review", application_id=state.get("applicant_id"))
         return {
             "messages": [_make_assistant_message(response)],
             "current_phase": "decision",
@@ -120,6 +123,7 @@ async def review_node(state: ApplicantState) -> ApplicantState:
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", node="review", duration_ms=round(duration_ms, 2), next_phase="review", discrepancy_count=len(unresolved))
+    check_state_size(state, node_name="review", application_id=state.get("applicant_id"))
 
     return {
         "messages": [_make_assistant_message(response)],

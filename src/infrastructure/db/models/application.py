@@ -29,6 +29,7 @@ class Application(Base):
     eligibility_score: Mapped[float | None]
     decision: Mapped[str | None]  # approved | soft_decline | manual_review
     decision_explanation: Mapped[str | None]
+    validation_confidence: Mapped[float | None]
     phase_completed: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     eligibility_factors: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     state_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

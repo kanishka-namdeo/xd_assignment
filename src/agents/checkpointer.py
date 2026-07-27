@@ -1,7 +1,14 @@
 """Shared checkpointer factory for all LangGraph agents with TTL cleanup."""
 
 import asyncio
+import sys
+
+# Windows event loop compatibility - must be set before any async operations
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import psycopg
 import structlog
@@ -9,6 +16,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg.rows import dict_row
 
 from src.config import settings
+from src.utils.state_size import check_state_size
 
 logger = structlog.get_logger(__name__)
 
@@ -20,6 +28,8 @@ async def get_checkpointer() -> AsyncPostgresSaver:
     """Return a long-lived AsyncPostgresSaver, creating it on first call.
 
     This is a singleton factory that all graphs share to avoid connection leaks.
+    The returned checkpointer has state size monitoring wrapped around its
+    ``aput`` method so that every checkpoint save logs the state size.
     """
     global _checkpointer
     if _checkpointer is None:
@@ -33,8 +43,37 @@ async def get_checkpointer() -> AsyncPostgresSaver:
             row_factory=dict_row,
         )
         _checkpointer = AsyncPostgresSaver(conn)
+        _wrap_checkpointer_with_size_monitoring(_checkpointer)
         logger.info("postgres_saver_initialized")
     return _checkpointer
+
+
+def _wrap_checkpointer_with_size_monitoring(checkpointer: AsyncPostgresSaver) -> None:
+    """Monkey-patch the checkpointer's aput to log state size before saving.
+
+    This is non-blocking: size check failures are logged but never prevent
+    the checkpoint from being saved.
+    """
+    original_aput = checkpointer.aput
+
+    async def monitored_aput(
+        config: Any,
+        checkpoint: dict[str, Any],
+        metadata: Any,
+        new_versions: Any,
+    ) -> Any:
+        # The checkpoint dict contains the full state under 'channel_values'
+        state = checkpoint.get("channel_values", checkpoint)
+        try:
+            check_state_size(
+                state if isinstance(state, dict) else {"_raw": state},
+                node_name=metadata.get("source") if isinstance(metadata, dict) else None,
+            )
+        except Exception:
+            logger.debug("state_size_check_skipped", reason="non-dict state")
+        return await original_aput(config, checkpoint, metadata, new_versions)
+
+    checkpointer.aput = monitored_aput  # type: ignore[assignment]
 
 
 class CheckpointerManager:
@@ -131,12 +170,12 @@ class CheckpointerManager:
                 # Check if there are any old checkpoints to clean
                 await cur.execute(
                     """
-                    SELECT COUNT(*) FROM checkpoints WHERE created_at < %s
+                    SELECT COUNT(*) as count FROM checkpoints WHERE created_at < %s
                     """,
                     (cutoff_time,),
                 )
                 row = await cur.fetchone()
-                count = row[0] if row else 0
+                count = row["count"] if row else 0
                 
                 if count == 0:
                     logger.info("checkpoint_cleanup_no_old_checkpoints")

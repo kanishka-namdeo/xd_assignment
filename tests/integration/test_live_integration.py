@@ -13,11 +13,15 @@ Two test subsets:
 from __future__ import annotations
 
 import os
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
 from src.agents.state import ApplicantState
+
+logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +83,9 @@ class TestGraphBuildability:
 
     def test_extraction_subgraph_builds(self):
         """Extraction subgraph should compile without errors."""
+        start = time.perf_counter()
+        logger.info("test_extraction_subgraph_builds_start")
+
         from src.agents.extraction.graph import build_extraction_subgraph
         graph = build_extraction_subgraph()
         assert graph is not None
@@ -86,8 +93,16 @@ class TestGraphBuildability:
         assert "extract_documents" in graph.nodes
         assert "summarize_extraction" in graph.nodes
 
+        logger.info(
+            "test_extraction_subgraph_builds_complete",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     def test_eligibility_subgraph_builds(self):
         """Eligibility subgraph should compile without errors."""
+        start = time.perf_counter()
+        logger.info("test_eligibility_subgraph_builds_start")
+
         from src.agents.eligibility.graph import build_eligibility_graph
         graph = build_eligibility_graph()
         compiled = graph.compile()
@@ -96,8 +111,16 @@ class TestGraphBuildability:
         assert "eligibility_gate" in compiled.nodes
         assert "eligibility_finalize" in compiled.nodes
 
+        logger.info(
+            "test_eligibility_subgraph_builds_complete",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     def test_decision_subgraph_builds(self):
         """Decision subgraph should compile without errors."""
+        start = time.perf_counter()
+        logger.info("test_decision_subgraph_builds_start")
+
         from src.agents.decision.graph import build_decision_graph
         graph = build_decision_graph()
         compiled = graph.compile()
@@ -105,9 +128,17 @@ class TestGraphBuildability:
         assert "decision_react" in compiled.nodes
         assert "decision_deterministic" in compiled.nodes
 
+        logger.info(
+            "test_decision_subgraph_builds_complete",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     @pytest.mark.asyncio
     async def test_validation_subgraph_builds(self):
         """Validation subgraph should build without errors (compilation may need checkpointer)."""
+        start = time.perf_counter()
+        logger.info("test_validation_subgraph_builds_start")
+
         from src.agents.validation.graph import build_validation_graph
 
         with patch("src.agents.validation.graph.get_checkpointer", return_value=None):
@@ -125,9 +156,18 @@ class TestGraphBuildability:
         for node_name in expected_nodes:
             assert node_name in graph.nodes, f"Missing node: {node_name}"
 
+        logger.info(
+            "test_validation_subgraph_builds_complete",
+            node_count=len(expected_nodes),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     @pytest.mark.asyncio
     async def test_orchestrator_graph_builds(self):
         """Orchestrator graph should build without errors."""
+        start = time.perf_counter()
+        logger.info("test_orchestrator_graph_builds_start")
+
         from src.agents.orchestrator.graph import build_orchestrator_graph
 
         with patch("src.agents.orchestrator.graph.get_checkpointer", return_value=None):
@@ -146,6 +186,12 @@ class TestGraphBuildability:
         }
         for node_name in expected_nodes:
             assert node_name in graph.nodes, f"Missing node: {node_name}"
+
+        logger.info(
+            "test_orchestrator_graph_builds_complete",
+            node_count=len(expected_nodes),
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
 
     def test_orchestrator_routes_exist(self):
         """Orchestrator routing functions should be importable and callable."""
@@ -279,6 +325,8 @@ class TestLiveOrchestratorGraph:
         - Qdrant running (for embeddings)
         - Neo4j running (for graph relationships)
         """
+        start = time.perf_counter()
+        logger.info("test_orchestrator_full_flow_live_start", application_id="live-app-001")
         _skip_if_no_infrastructure()
 
         from src.agents.orchestrator.graph import build_orchestrator_graph
@@ -288,9 +336,14 @@ class TestLiveOrchestratorGraph:
         llm_client = _get_llm_client()
 
         # Build the graph with real infrastructure
+        build_start = time.perf_counter()
         with patch("src.agents.orchestrator.graph.get_checkpointer"):
             with patch("src.agents.orchestrator.graph.get_session_factory"):
                 graph = await build_orchestrator_graph()
+        logger.info(
+            "graph_built",
+            duration_ms=round((time.perf_counter() - build_start) * 1000, 2),
+        )
 
         # Set up minimal state for a quick flow
         minimal_state["current_phase"] = "decision"
@@ -304,7 +357,13 @@ class TestLiveOrchestratorGraph:
         minimal_state["validation_results"] = {"overall_confidence": 0.85}
 
         config = {"configurable": {"thread_id": "live-test-orchestrator-001", "recursion_limit": 50}}
+        invoke_start = time.perf_counter()
         final_state = await graph.ainvoke(minimal_state, config=config)
+        logger.info(
+            "graph_invoked",
+            application_id="live-app-001",
+            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+        )
 
         # Assertions
         assert final_state is not None
@@ -312,9 +371,17 @@ class TestLiveOrchestratorGraph:
         # Decision should have been attempted
         assert final_state.get("decision") is not None or final_state.get("current_phase") in ("decision", "enablement")
 
+        logger.info(
+            "test_orchestrator_full_flow_live_complete",
+            application_id="live-app-001",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     @pytest.mark.asyncio
     async def test_orchestrator_decision_phase_live(self, minimal_state):
         """Test the decision phase specifically with real LLM."""
+        start = time.perf_counter()
+        logger.info("test_orchestrator_decision_phase_live_start", application_id="live-app-001")
         _skip_if_no_infrastructure()
 
         from src.agents.orchestrator.graph import build_orchestrator_graph
@@ -325,9 +392,14 @@ class TestLiveOrchestratorGraph:
             pytest.skip("No LLM client configured (set LLM_PROVIDER env var)")
         inject_llm_client(llm_client)
 
+        build_start = time.perf_counter()
         with patch("src.agents.orchestrator.graph.get_checkpointer"):
             with patch("src.agents.orchestrator.graph.get_session_factory"):
                 graph = await build_orchestrator_graph()
+        logger.info(
+            "graph_built",
+            duration_ms=round((time.perf_counter() - build_start) * 1000, 2),
+        )
 
         minimal_state["current_phase"] = "decision"
         minimal_state["identity_number"] = "784-1990-1234567-8"
@@ -340,10 +412,22 @@ class TestLiveOrchestratorGraph:
         minimal_state["gate_status"] = "passed"
 
         config = {"configurable": {"thread_id": "live-test-decision-001", "recursion_limit": 50}}
+        invoke_start = time.perf_counter()
         final_state = await graph.ainvoke(minimal_state, config=config)
+        logger.info(
+            "graph_invoked",
+            application_id="live-app-001",
+            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+        )
 
         assert final_state is not None
         assert final_state.get("decision") in ("approved", "soft_decline", "manual_review", None)
+
+        logger.info(
+            "test_orchestrator_decision_phase_live_complete",
+            application_id="live-app-001",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
 
 
 @pytest.mark.live
@@ -353,6 +437,8 @@ class TestLiveSubgraphs:
     @pytest.mark.asyncio
     async def test_validation_subgraph_live(self):
         """Run validation subgraph with real LLM for Reflexion loop."""
+        start = time.perf_counter()
+        logger.info("test_validation_subgraph_live_start", application_id="live-val-app-001")
         _skip_if_no_infrastructure()
 
         from src.agents.validation.graph import run_validation_agent
@@ -400,15 +486,29 @@ class TestLiveSubgraphs:
             "extraction_results": [],
         }
 
+        invoke_start = time.perf_counter()
         result = await run_validation_agent(state)
+        logger.info(
+            "validation_agent_invoked",
+            application_id="live-val-app-001",
+            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+        )
 
         assert result is not None
         assert "validation_results" in result
         assert "gate_status" in result
 
+        logger.info(
+            "test_validation_subgraph_live_complete",
+            application_id="live-val-app-001",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     @pytest.mark.asyncio
     async def test_eligibility_subgraph_live(self):
         """Run eligibility subgraph with real LLM."""
+        start = time.perf_counter()
+        logger.info("test_eligibility_subgraph_live_start", application_id="live-elig-app-001")
         _skip_if_no_infrastructure()
 
         from src.agents.eligibility.graph import get_eligibility_graph
@@ -452,14 +552,28 @@ class TestLiveSubgraphs:
         }
 
         config = {"configurable": {"thread_id": "live-elig-001", "recursion_limit": 10}}
+        invoke_start = time.perf_counter()
         result = await graph.ainvoke(state, config=config)
+        logger.info(
+            "eligibility_graph_invoked",
+            application_id="live-elig-app-001",
+            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+        )
 
         assert result is not None
         assert "eligibility_score" in result or result.get("eligibility_score") is not None
 
+        logger.info(
+            "test_eligibility_subgraph_live_complete",
+            application_id="live-elig-app-001",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )
+
     @pytest.mark.asyncio
     async def test_decision_subgraph_live(self):
         """Run decision subgraph with real LLM."""
+        start = time.perf_counter()
+        logger.info("test_decision_subgraph_live_start", application_id="live-dec-app-001")
         _skip_if_no_infrastructure()
 
         from src.agents.decision.graph import get_decision_agent
@@ -506,13 +620,26 @@ class TestLiveSubgraphs:
         }
 
         config = {"configurable": {"thread_id": "live-dec-001", "recursion_limit": 10}}
+        invoke_start = time.perf_counter()
         result = await agent.ainvoke(state, config=config)
+        logger.info(
+            "decision_agent_invoked",
+            application_id="live-dec-app-001",
+            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+        )
 
         assert result is not None
         # Decision should be one of the valid outcomes
         decision = result.get("decision")
         assert decision in ("approved", "soft_decline", "manual_review"), (
             f"Unexpected decision: {decision}"
+        )
+        logger.info("decision_reached", decision=decision, application_id="live-dec-app-001")
+
+        logger.info(
+            "test_decision_subgraph_live_complete",
+            application_id="live-dec-app-001",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
         )
 
 
@@ -527,6 +654,8 @@ class TestLiveEndToEndPipeline:
         Uses minimal mock document data to keep the test fast while still
         exercising real LLM calls through the full graph.
         """
+        start = time.perf_counter()
+        logger.info("test_full_pipeline_live_with_mock_documents_start", application_id="live-e2e-app-001")
         _skip_if_no_infrastructure()
 
         from src.agents.orchestrator.graph import build_orchestrator_graph
@@ -582,13 +711,35 @@ class TestLiveEndToEndPipeline:
             "extraction_results": [],
         }
 
+        build_start = time.perf_counter()
         with patch("src.agents.orchestrator.graph.get_checkpointer"):
             with patch("src.agents.orchestrator.graph.get_session_factory"):
                 graph = await build_orchestrator_graph()
+        logger.info(
+            "graph_built",
+            duration_ms=round((time.perf_counter() - build_start) * 1000, 2),
+        )
 
         config = {"configurable": {"thread_id": "live-e2e-001", "recursion_limit": 50}}
+        invoke_start = time.perf_counter()
         final_state = await graph.ainvoke(state, config=config)
+        logger.info(
+            "graph_invoked",
+            application_id="live-e2e-app-001",
+            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+        )
 
         assert final_state is not None
         # The pipeline should have progressed through multiple phases
         assert final_state.get("current_phase") is not None
+        logger.info(
+            "pipeline_progressed",
+            application_id="live-e2e-app-001",
+            current_phase=final_state.get("current_phase"),
+        )
+
+        logger.info(
+            "test_full_pipeline_live_with_mock_documents_complete",
+            application_id="live-e2e-app-001",
+            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        )

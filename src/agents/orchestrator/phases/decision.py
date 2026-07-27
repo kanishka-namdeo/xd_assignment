@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from src.agents.orchestrator.di import _make_assistant_message, get_services
+from src.utils.circuit_breaker import CircuitBreaker
 from src.utils.retry import retry_transient
 
 if TYPE_CHECKING:
@@ -15,16 +16,51 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+# Circuit breakers for subgraph invocations
+_eligibility_circuit = CircuitBreaker(
+    failure_threshold=3, recovery_timeout=300, name="eligibility_subgraph"
+)
+_decision_circuit = CircuitBreaker(
+    failure_threshold=3, recovery_timeout=300, name="decision_subgraph"
+)
 
+
+async def _eligibility_fallback(state: dict[str, Any]) -> dict[str, Any]:
+    """Fallback when eligibility circuit is open."""
+    logger.warning(
+        "eligibility_circuit_open_using_fallback",
+        application_id=state.get("application_id"),
+    )
+    return {
+        "eligibility_score": 0.5,
+        "eligibility_factors": {"error": "Eligibility service temporarily unavailable"},
+        "gate_status": "passed",
+    }
+
+
+async def _decision_fallback(state: dict[str, Any]) -> dict[str, Any]:
+    """Fallback when decision circuit is open."""
+    logger.warning(
+        "decision_circuit_open_using_fallback",
+        application_id=state.get("application_id"),
+    )
+    return {
+        "decision": "manual_review",
+        "decision_explanation": "Decision service temporarily unavailable - requires manual review",
+    }
+
+
+@_eligibility_circuit(fallback=_eligibility_fallback)
 @retry_transient(max_retries=3, base_delay=1.0)
 async def _invoke_eligibility_subgraph(graph: Any, state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
-    """Invoke eligibility subgraph with retry logic for transient failures."""
+    """Invoke eligibility subgraph with retry and circuit breaker logic."""
     return await graph.ainvoke(state, config=config)
 
 
+@_decision_circuit(fallback=_decision_fallback)
 @retry_transient(max_retries=3, base_delay=1.0)
 async def _invoke_decision_subgraph(agent: Any, state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
-    """Invoke decision agent with retry logic for transient failures."""
+    """Invoke decision agent with retry and circuit breaker logic."""
     return await agent.ainvoke(state, config=config)
 
 

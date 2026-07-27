@@ -32,3 +32,6 @@ class ChatResponse(BaseModel):
     decision: str | None = None
     decision_card: dict | None = None
     interrupt: InterruptData | None = None
+    enablement_recommendations: list[dict] | list[str] | None = None
+    discrepancies: list[dict] | None = None
+    validation_confidence: float | None = None

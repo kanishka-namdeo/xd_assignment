@@ -183,7 +183,7 @@ async def document_collection_node(state: ApplicantState) -> ApplicantState:
             "messages": [_make_assistant_message(response)],
             "current_phase": "processing",
             "uploaded_documents": uploaded_documents,
-            "new_documents_uploaded": True,
+            "new_documents_uploaded": bool(new_doc_entries),
         }
 
     # Missing documents - check if we're resuming from an interrupt

@@ -41,3 +41,27 @@ def validate_luhn(emirates_id: str) -> bool:
 
 def validate(emirates_id: str) -> bool:
     return validate_format(emirates_id) and validate_luhn(emirates_id)
+
+
+def generate_emirates_id_number() -> str:
+    """Generate a valid Emirates ID number with correct Luhn checksum.
+    
+    Returns:
+        str: Emirates ID in format "784-XXXX-XXXXXXX-X"
+    """
+    import random
+    
+    # Generate 14 random digits (excluding check digit)
+    prefix = "784"
+    middle = "".join([str(random.randint(0, 9)) for _ in range(4)])
+    body_part = "".join([str(random.randint(0, 9)) for _ in range(7)])
+    
+    # Combine without check digit
+    base_digits = prefix + middle + body_part
+    
+    # Calculate Luhn check digit
+    check_digit = luhn_check_digit(base_digits)
+    
+    # Format as Emirates ID
+    full_id = base_digits + str(check_digit)
+    return f"{full_id[:3]}-{full_id[3:7]}-{full_id[7:14]}-{full_id[14]}"

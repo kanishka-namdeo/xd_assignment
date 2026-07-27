@@ -35,6 +35,10 @@ SQLAlchemy Alembic migrations for PostgreSQL schema evolution. Tracks changes to
 ### Existing Migrations
 - `20260725001_add_document_processing_schema.py` — Initial schema with 16 tables (applicants, applications, documents, extraction data, audit logs)
 - `20260726001_add_state_snapshot.py` — Adds state_snapshot JSONB column to applications table for LangGraph checkpointing
+- `20260727001_add_validation_confidence.py` — Adds validation_confidence FLOAT column to applications table to track validation agent confidence scores
+- `20260727002_add_checkpoint_created_at.py` — Adds created_at TIMESTAMPTZ column to checkpoints table for TTL cleanup support
+
+4 migrations total.
 
 ## Work Guidance
 

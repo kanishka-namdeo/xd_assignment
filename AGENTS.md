@@ -205,19 +205,33 @@ Four-layer evaluation framework for agent tool correctness. Distinct from unit t
 
 ### `alembic/` - Database Migrations
 
-SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 3 migrations: initial schema (16 tables), state_snapshot column addition, and validation_confidence column addition. Tracks changes to applicant, document, application, and extraction tables.
+SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 4 migrations: initial schema (16 tables), state_snapshot JSONB column, validation_confidence column, and checkpoint created_at column. Tracks changes to applicant, document, application, and extraction tables.
 
 ### `data/` - Test Data Storage
 
-Runtime storage for synthetic test applicant data used in development and testing. Populated by running `scripts/generate_test_data.py`. Contains cross-document-consistent profiles for 3 applicant scenarios (approved, manual_review, soft_decline).
+Runtime storage for synthetic test applicant data used in development and testing. Contains:
+- `test_applicants/` - Golden dataset with 3 cross-document-consistent profiles (approved, manual_review, soft_decline)
+- `fresh_accounts/` - Fresh generated accounts for E2E testing with full document sets
+- `uploads/` - Temporary upload storage during test sessions
+
+Populated by running `scripts/generate_test_data.py` and `scripts/generate_fresh_account.py`.
 
 ### `scripts/` - Utility Scripts
 
-Development and operational scripts for data generation and maintenance tasks. Contains `generate_test_data.py` (279 lines) for generating 3 synthetic test applicant profiles with cross-document consistency.
+Development and operational scripts for data generation, testing, and maintenance. Categories include:
+- **Data Generation**: `generate_test_data.py`, `generate_fresh_account.py`
+- **E2E Testing**: `e2e_test.py`, `final_e2e_test.py`, `continue_e2e_test.py`, `stream_e2e_test.py`
+- **Database**: `check_db.py`, `check_column.py`, `add_validation_confidence_column.py`, `apply_checkpoint_migration.py`
+- **Demo/Smoke**: `demo_smoke_test.py`, `quick_smoke_test.py`
+- **API Testing**: `test_fastapi.py`, `test_persist.py`
+- **Streaming**: `long_stream_test.py`, `stream_upload_test.py`, `upload_and_process.py`
+- **Browser E2E**: `browser_e2e_test.py`
+
+19 scripts total.
 
 ### `docs/` - Documentation
 
-Design specifications, architecture decisions, and durable project documentation. Contains 6 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns), Langfuse v4 setup guide, and `solution-summary.md` — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers (`live-testing-tracker.md`, `e2e-testing-tracker.md`) documenting comprehensive test results with 9/9 tests passing and 6 bugs fixed.
+Design specifications, architecture decisions, and durable project documentation. Contains 10 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns, agent tools evaluation, LangGraph configuration audit, UI/UX polish), 4 active implementation plans, Langfuse v4 setup guide, and `solution-summary.md` — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers documenting comprehensive test results.
 
 ### `reference_docs/` - Reference Documentation
 

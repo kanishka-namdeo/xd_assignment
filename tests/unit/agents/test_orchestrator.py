@@ -72,22 +72,16 @@ def _reset_global_state():
 
 
 @pytest.fixture
-def _mock_decision_agent_attr():
-    """Add a mock decision_agent attribute to src.agents.decision.graph module.
+def mock_decision_agent():
+    """Return a mock decision agent via the factory function patch.
 
-    The orchestrator decision_node does ``from src.agents.decision.graph import decision_agent``
-    but the graph module only exports ``get_decision_agent()``. This fixture patches
-    the module dict so the import succeeds during tests.
+    The orchestrator decision_node uses ``from src.agents.decision.graph import get_decision_agent``
+    and calls ``get_decision_agent()`` to obtain the compiled agent. This fixture patches
+    the factory function to return a mock agent.
     """
-    import src.agents.decision.graph as dg
     mock_agent = MagicMock()
-    original = getattr(dg, "decision_agent", None)
-    dg.decision_agent = mock_agent
-    yield mock_agent
-    if original is None:
-        delattr(dg, "decision_agent")
-    else:
-        dg.decision_agent = original
+    with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_agent):
+        yield mock_agent
 
 
 # ---------------------------------------------------------------------------
@@ -654,7 +648,7 @@ class TestDecisionNode:
     """Test decision node for eligibility and final decision."""
 
     @pytest.mark.asyncio
-    async def test_eligibility_subgraph_invocation(self, sample_state, _mock_decision_agent_attr):
+    async def test_eligibility_subgraph_invocation(self, sample_state, mock_decision_agent):
         """Test eligibility subgraph is invoked."""
         sample_state["current_phase"] = "decision"
 
@@ -665,7 +659,7 @@ class TestDecisionNode:
             "gate_status": "passed",
         })
 
-        _mock_decision_agent_attr.ainvoke = AsyncMock(return_value={
+        mock_decision_agent.ainvoke = AsyncMock(return_value={
             "decision": "approved",
             "decision_explanation": "Strong financial profile",
         })
@@ -679,7 +673,7 @@ class TestDecisionNode:
         assert result["current_phase"] == "enablement"
 
     @pytest.mark.asyncio
-    async def test_decision_subgraph_invocation(self, sample_state, _mock_decision_agent_attr):
+    async def test_decision_subgraph_invocation(self, sample_state, mock_decision_agent):
         """Test decision subgraph receives eligibility score."""
         sample_state["current_phase"] = "decision"
 
@@ -699,7 +693,7 @@ class TestDecisionNode:
                 "decision_explanation": "Borderline score",
             }
 
-        _mock_decision_agent_attr.ainvoke = mock_ainvoke
+        mock_decision_agent.ainvoke = mock_ainvoke
 
         with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
             await decision_node(sample_state)
@@ -707,7 +701,7 @@ class TestDecisionNode:
         assert captured_state.get("eligibility_score") == 0.65
 
     @pytest.mark.asyncio
-    async def test_eligibility_gate_failure(self, sample_state, _mock_decision_agent_attr):
+    async def test_eligibility_gate_failure(self, sample_state, mock_decision_agent):
         """Test eligibility gate failure results in soft_decline."""
         sample_state["current_phase"] = "decision"
 
@@ -727,14 +721,14 @@ class TestDecisionNode:
         assert result["current_phase"] == "enablement"
 
     @pytest.mark.asyncio
-    async def test_fallback_to_threshold_rules(self, sample_state, _mock_decision_agent_attr):
+    async def test_fallback_to_threshold_rules(self, sample_state, mock_decision_agent):
         """Test fallback to threshold-based rules when subgraphs fail."""
         sample_state["current_phase"] = "decision"
 
         mock_eligibility_graph = MagicMock()
         mock_eligibility_graph.ainvoke = AsyncMock(side_effect=Exception("Eligibility unavailable"))
 
-        _mock_decision_agent_attr.ainvoke = AsyncMock(side_effect=Exception("Decision unavailable"))
+        mock_decision_agent.ainvoke = AsyncMock(side_effect=Exception("Decision unavailable"))
 
         inject_services()
 
@@ -745,7 +739,7 @@ class TestDecisionNode:
         assert "requires manual review" in result["decision_explanation"]
 
     @pytest.mark.asyncio
-    async def test_fallback_high_score_approved(self, sample_state, _mock_decision_agent_attr):
+    async def test_fallback_high_score_approved(self, sample_state, mock_decision_agent):
         """Test fallback approves when eligibility score >= 0.7."""
         sample_state["current_phase"] = "decision"
 
@@ -759,7 +753,7 @@ class TestDecisionNode:
         mock_eligibility_graph = MagicMock()
         mock_eligibility_graph.ainvoke = AsyncMock(side_effect=Exception("Graph unavailable"))
 
-        _mock_decision_agent_attr.ainvoke = AsyncMock(side_effect=Exception("Graph unavailable"))
+        mock_decision_agent.ainvoke = AsyncMock(side_effect=Exception("Graph unavailable"))
 
         with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
             result = await decision_node(sample_state)
@@ -768,7 +762,7 @@ class TestDecisionNode:
         assert result["decision"] == "approved"
 
     @pytest.mark.asyncio
-    async def test_fallback_low_score_decline(self, sample_state, _mock_decision_agent_attr):
+    async def test_fallback_low_score_decline(self, sample_state, mock_decision_agent):
         """Test fallback declines when eligibility score < 0.5."""
         sample_state["current_phase"] = "decision"
 
@@ -782,7 +776,7 @@ class TestDecisionNode:
         mock_eligibility_graph = MagicMock()
         mock_eligibility_graph.ainvoke = AsyncMock(side_effect=Exception("Graph unavailable"))
 
-        _mock_decision_agent_attr.ainvoke = AsyncMock(side_effect=Exception("Graph unavailable"))
+        mock_decision_agent.ainvoke = AsyncMock(side_effect=Exception("Graph unavailable"))
 
         with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
             result = await decision_node(sample_state)

@@ -1,13 +1,21 @@
 """Live tests for implemented components."""
 
 import sys
+import time
 import uuid
 
-# Test 1: Emirates ID validation
-print("=" * 60)
-print("TEST 1: Emirates ID Validation")
-print("=" * 60)
+import structlog
 
+from src.infrastructure.observability.logging import configure_logging
+
+configure_logging()
+logger = structlog.get_logger(__name__)
+
+logger.info("live_test_suite_started")
+
+# Test 1: Emirates ID validation
+logger.info("live_test_emirates_id_validation_started")
+t0 = time.time()
 from src.utils.emirates_id import validate, validate_format, validate_luhn, luhn_check_digit
 
 # Valid Emirates ID (784-1990-000000-0) - format valid, let's check Luhn
@@ -24,47 +32,43 @@ for eid, desc in test_ids:
     fmt = validate_format(eid)
     luhn = validate_luhn(eid) if fmt else False
     full = validate(eid)
-    print(f"  {eid:25} format={fmt}  luhn={luhn}  validate={full}  ({desc})")
+    logger.info("live_test_emirates_id_validated", emirates_id=eid, format_valid=fmt, luhn_valid=luhn, valid=full, description=desc)
+
+duration_ms = (time.time() - t0) * 1000
+logger.info("live_test_emirates_id_validation_completed", duration_ms=round(duration_ms, 1))
 
 # Test 2: Pydantic schemas
-print()
-print("=" * 60)
-print("TEST 2: Pydantic Schemas")
-print("=" * 60)
-
+logger.info("live_test_pydantic_schemas_started")
+t0 = time.time()
 from src.domain.schemas.auth import AuthLoginRequest, AuthLoginResponse
 from src.domain.schemas.chat import ChatRequest, ChatResponse, UploadedDocument
 
 # Auth schemas
 req = AuthLoginRequest(emirates_id="784-1990-000000-1")
-print(f"  AuthLoginRequest: {req}")
-
 resp = AuthLoginResponse(
     applicant_id=uuid.uuid4(),
     application_id=uuid.uuid4(),
     is_new_applicant=True,
     current_phase="intake",
 )
-print(f"  AuthLoginResponse: applicant_id={resp.applicant_id}, phase={resp.current_phase}")
+logger.info("live_test_auth_schemas_validated", applicant_id=str(resp.applicant_id), phase=resp.current_phase)
 
 # Chat schemas
 chat_req = ChatRequest(text="Hello", file_paths=["/tmp/test.pdf"])
-print(f"  ChatRequest: text={chat_req.text}, files={chat_req.file_paths}")
-
 doc = UploadedDocument(doc_type="emirates_id", file_path="/tmp/test.pdf", status="uploaded")
 chat_resp = ChatResponse(message="Hello!", phase="intake", uploaded_documents=[doc])
-print(f"  ChatResponse: message={chat_resp.message}, phase={chat_resp.phase}, docs={len(chat_resp.uploaded_documents)}")
+logger.info("live_test_chat_schemas_validated", phase=chat_resp.phase, doc_count=len(chat_resp.uploaded_documents))
+
+duration_ms = (time.time() - t0) * 1000
+logger.info("live_test_pydantic_schemas_completed", duration_ms=round(duration_ms, 1))
 
 # Test 3: Orchestrator graph
-print()
-print("=" * 60)
-print("TEST 3: Orchestrator Graph (stub nodes)")
-print("=" * 60)
-
+logger.info("live_test_orchestrator_graph_started")
+t0 = time.time()
 from src.agents.orchestrator.graph import build_orchestrator_graph
 
 graph = build_orchestrator_graph()
-print(f"  Graph compiled: {graph is not None}")
+logger.info("live_test_graph_compiled", compiled=graph is not None)
 
 # Run through intake phase
 config = {"configurable": {"thread_id": "test-thread-1"}}
@@ -83,16 +87,13 @@ result = graph.invoke({
     "decision_explanation": None,
 }, config=config)
 
-print(f"  Output phase: {result.get('current_phase')}")
-print(f"  Messages count: {len(result.get('messages', []))}")
-if result.get('messages'):
-    last_msg = result['messages'][-1]
-    role = getattr(last_msg, 'role', None) or getattr(last_msg, 'type', 'unknown')
-    content = getattr(last_msg, 'content', '') or str(last_msg)
-    print(f"  Last message role: {role}")
-    print(f"  Last message content (truncated): {content[:80]}...")
+logger.info(
+    "live_test_graph_invoked",
+    output_phase=result.get("current_phase"),
+    message_count=len(result.get("messages", [])),
+)
 
-print()
-print("=" * 60)
-print("ALL TESTS PASSED")
-print("=" * 60)
+duration_ms = (time.time() - t0) * 1000
+logger.info("live_test_orchestrator_graph_completed", duration_ms=round(duration_ms, 1))
+
+logger.info("live_test_suite_completed")

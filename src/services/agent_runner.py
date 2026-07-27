@@ -6,7 +6,7 @@ from typing import Any
 
 import structlog
 from langgraph.types import Command
-from src.agents.orchestrator.graph import build_orchestrator_graph
+from src.agents.orchestrator.graph import get_orchestrator_graph
 from src.agents.orchestrator.nodes import inject_llm_client
 from src.infrastructure.llm.client import LLMClient
 from src.infrastructure.observability.langfuse_client import LangfuseClient
@@ -54,7 +54,7 @@ async def run(input_data: dict, langfuse_client: LangfuseClient | None = None) -
         llm_client = LLMClient()
         inject_llm_client(llm_client)
 
-        graph = await build_orchestrator_graph()
+        graph = await get_orchestrator_graph()
         config: dict[str, Any] = {
             "configurable": {
                 "thread_id": thread_id,
@@ -174,7 +174,7 @@ async def run_streaming(
         llm_client = LLMClient()
         inject_llm_client(llm_client)
 
-        graph = await build_orchestrator_graph()
+        graph = await get_orchestrator_graph()
         config: dict[str, Any] = {
             "configurable": {
                 "thread_id": thread_id,

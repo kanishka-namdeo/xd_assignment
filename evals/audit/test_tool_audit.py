@@ -5,8 +5,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import structlog
 
 from src.agents.extraction.tools import ALL_EXTRACTION_TOOLS
+
+logger = structlog.get_logger(__name__)
 from src.agents.validation.tools import (
     per_document_validation_tool,
     cross_document_compare_tool,
@@ -91,6 +94,12 @@ def test_tool_audit_produces_report(tmp_path):
         report["total_tools"] += len(tool_names)
 
         test_count = _count_tests_for_agent(agent_name)
+        logger.debug(
+            "tool_audit_agent_counted",
+            agent=agent_name,
+            tool_count=len(tool_names),
+            unit_test_count=test_count,
+        )
         report["coverage_map"][agent_name] = {
             "tool_count": len(tool_names),
             "unit_test_count": test_count,
@@ -107,6 +116,13 @@ def test_tool_audit_produces_report(tmp_path):
     # Write artifact
     report_path = Path(__file__).parent / "report.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    logger.info(
+        "tool_audit_complete",
+        total_tools=report["total_tools"],
+        gap_count=len(report["gaps"]),
+        agents=list(report["tool_inventory"].keys()),
+    )
 
     assert report["total_tools"] == 19
     assert len(report["gaps"]) >= 0  # gaps are informational

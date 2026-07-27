@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents.extraction.nodes import (
@@ -22,6 +23,8 @@ from src.agents.extraction.nodes import (
     _parse_agent_output,
     _regex_fallback_extraction,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +44,7 @@ class TestOcrExtractTool:
         img_path.write_bytes(b"fake image data")
 
         # Mock the OCR engine
-        with patch("src.agents.extraction.tools.OCREngine") as mock_ocr:
+        with patch("src.infrastructure.document_processing.ocr.OCREngine") as mock_ocr:
             mock_engine = MagicMock()
             mock_result = MagicMock()
             mock_result.text = "Extracted text"
@@ -53,6 +56,7 @@ class TestOcrExtractTool:
 
             result = ocr_extract_tool.invoke({"file_path": str(img_path)})
 
+            logger.debug("tool_invoked", tool="ocr_extract", confidence=result["confidence"])
             assert "text" in result
             assert result["text"] == "Extracted text"
             assert result["confidence"] == 0.95
@@ -83,7 +87,7 @@ class TestPdfParseTool:
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-1.4 fake pdf data")
 
-        with patch("src.agents.extraction.tools.PDFParser") as mock_parser:
+        with patch("src.infrastructure.document_processing.pdf_parser.PDFParser") as mock_parser:
             mock_parser_instance = MagicMock()
             mock_result = MagicMock()
             mock_result.raw_extracted_data = {"markdown": "# Test", "json_structure": {}}
@@ -124,7 +128,7 @@ class TestTableExtractTool:
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-1.4 fake pdf data")
 
-        with patch("src.agents.extraction.tools.TableExtractor") as mock_extractor:
+        with patch("src.infrastructure.document_processing.table_extractor.TableExtractor") as mock_extractor:
             import pandas as pd
 
             mock_extractor_instance = MagicMock()
@@ -167,7 +171,7 @@ class TestResumeParseTool:
         docx_path = tmp_path / "resume.docx"
         docx_path.write_bytes(b"fake docx data")
 
-        with patch("src.agents.extraction.tools.ResumeParser") as mock_parser:
+        with patch("src.infrastructure.document_processing.resume_parser.ResumeParser") as mock_parser:
             mock_parser_instance = MagicMock()
             mock_result = MagicMock()
             mock_result.full_name = "John Doe"

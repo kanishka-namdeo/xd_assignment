@@ -78,6 +78,14 @@ class ChatService:
         graph_input["application_id"] = str(application.id)
         graph_input["uploaded_files"] = file_paths
 
+        logger.info(
+            "invoking_orchestrator",
+            application_id=application_id,
+            phase=application.current_phase,
+            file_count=len(file_paths),
+            has_interrupt=had_pending_interrupt,
+        )
+
         # Invoke orchestrator
         result = await run_orchestrator(graph_input, langfuse_client=langfuse_client)
 
@@ -164,7 +172,11 @@ class ChatService:
         message_content = ""
         if messages:
             last_msg = messages[-1]
-            message_content = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content", "")
+            if hasattr(last_msg, "content"):
+                message_content = last_msg.content
+            elif isinstance(last_msg, dict):
+                # Handle both LangChain format (type=human/ai) and standard format (role=user/assistant)
+                message_content = last_msg.get("content", "")
 
         duration_ms = (time.perf_counter() - start_ms) * 1000
         logger.info(

@@ -14,7 +14,7 @@ MAX_ATTEMPTS = 3
 EMIRATES_ID_PATTERN = re.compile(r"^\d{3}-?\d{4}-?\d{7}-?\d$")
 
 PHASE_LABELS = {
-    "auth": "Authentication",
+    "authentication": "Authentication",
     "intake": "Intake",
     "document_collection": "Document Collection",
     "processing": "Processing",
@@ -128,6 +128,8 @@ def handle_login() -> None:
         st.session_state.applicant_id = data["applicant_id"]
         st.session_state.application_id = data["application_id"]
         st.session_state.current_phase = data.get("current_phase", "intake")
+        st.session_state.identity_number = data.get("identity_number", formatted_id)
+        st.session_state.applicant_info = data.get("applicant_info")
         st.session_state.login_attempts = 0
         st.session_state.login_error = None
         st.session_state.login_success = True
@@ -147,7 +149,11 @@ def handle_login() -> None:
                     }
                 ]
             if "uploaded_documents" in state_snapshot:
-                st.session_state.uploaded_documents = state_snapshot["uploaded_documents"]
+                docs = state_snapshot["uploaded_documents"]
+                for doc in docs:
+                    if "document_type" in doc and "doc_type" not in doc:
+                        doc["doc_type"] = doc["document_type"]
+                st.session_state.uploaded_documents = docs
             else:
                 st.session_state.uploaded_documents = []
             logger.info(
@@ -301,8 +307,6 @@ def render() -> None:
     if st.session_state.get("authenticated"):
         st.switch_page(st.session_state.pages["application"])
         return
-
-    st.set_page_config(page_title="Social Support Application", layout="centered")
 
     # Welcome back banner
     _render_welcome_back_banner()

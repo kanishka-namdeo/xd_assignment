@@ -14,3 +14,5 @@ class AuthLoginResponse(BaseModel):
     is_new_applicant: bool
     current_phase: str
     state_snapshot: dict | None = None
+    identity_number: str | None = None
+    applicant_info: dict | None = None

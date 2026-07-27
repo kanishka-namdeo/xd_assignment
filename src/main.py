@@ -1,10 +1,11 @@
 """FastAPI application factory."""
 
 import sys
+import asyncio
 
 # Windows asyncio event loop compatibility for psycopg async
+# Must be set before any async code runs
 if sys.platform == "win32":
-    import asyncio
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from collections.abc import AsyncGenerator
@@ -12,6 +13,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.agents.checkpointer import get_checkpointer_manager
 from src.api.middleware import RequestLoggingMiddleware
@@ -72,6 +74,15 @@ def create_app() -> FastAPI:
         description="Workflow automation for social support applications",
         version="1.0.0",
         lifespan=lifespan,
+    )
+
+    # Allow cross-origin requests from Streamlit frontend (development)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     app.add_middleware(RequestLoggingMiddleware)

@@ -32,6 +32,23 @@ Design specs produced by the brainstorming workflow. Each spec is a durable arti
 || `2026-07-25-agent-specification-design.md` | Agent architecture spec: 5 agents (orchestrator, extraction, validation, eligibility, decision), ReAct/Reflexion reasoning, deterministic gates, LangGraph state model |
 || `2026-07-25-langgraph-implementation-patterns-design.md` | LangGraph v1 implementation patterns: subgraph decomposition, state isolation, interrupt() wiring, Reflexion topology, create_agent migration, middleware strategy |
 || `2026-07-27-agent-tools-evaluation-design.md` | Agent tools evaluation framework: four-layer pytest suite (audit, golden dataset, schema contracts, live integration) for validating 19 agent tools |
+|| `2026-07-27-langgraph-configuration-audit-design.md` | LangGraph configuration audit: 15 issues (state reducers, checkpointer factory, state mutation, error classification, graph caching, deprecated API, recursion limits, create_agent imports, retry logic, streaming, checkpoint TTL, state size management, graceful degradation, health check, observability) |
+|| `2026-07-27-ui-ux-polish-design.md` | UI/UX polish improvements: high contrast mode, text size accessibility, help panel, phase guidance, document status cards |
+|| `2026-07-27-demo-readiness-fixes-design.md` | Demo readiness bug fixes: 8 bugs/architecture violations fixes + verification plan for full 7-phase flow |
+
+11 design specs total.
+
+### `superpowers/plans/` - Implementation Plans
+Active implementation plans tracking ongoing work items.
+
+|| File | Topic |
+||------|-------|
+|| `2026-07-27-agent-tools-evaluation.md` | Agent tools evaluation implementation plan |
+|| `2026-07-27-architecture-documentation-suite.md` | Architecture documentation suite implementation |
+|| `2026-07-27-demo-readiness-fixes.md` | Demo readiness bug fixes and improvements |
+|| `2026-07-27-langgraph-configuration-audit.md` | LangGraph configuration audit implementation |
+
+5 active plans.
 
 ### Solution Summary
 Living design artifact maintained by agents throughout the project lifecycle.
@@ -39,6 +56,16 @@ Living design artifact maintained by agents throughout the project lifecycle.
 || File | Topic |
 ||------|-------|
 || `solution-summary.md` | High-level architecture diagram, tool choice justification, modular workflow breakdown, future improvements and integration considerations. Capped at 10 pages. Updated on every architecture- or integration-affecting change. |
+
+### Architecture Documentation
+Comprehensive documentation suite for the project.
+
+|| File | Topic |
+||------|-------|
+|| `architecture.md` | 10-section architecture document covering all layers and components |
+|| `security-privacy.md` | Security and privacy practices |
+|| `api-design.md` | API design principles and endpoint catalog |
+|| `data-dictionary.md` | PostgreSQL schema documentation |
 
 ### Setup Guides
 Operational guides for infrastructure setup and configuration.

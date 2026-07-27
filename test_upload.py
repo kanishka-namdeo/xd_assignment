@@ -1,6 +1,14 @@
 """Test document upload with resume fix."""
+import time
+
 import requests
+import structlog
 from pathlib import Path
+from src.infrastructure.observability.logging import configure_logging
+
+configure_logging()
+
+logger = structlog.get_logger(__name__)
 
 app_id = '3d70382a-249f-4389-a16c-93c541de7049'
 doc_dir = 'data/test_applicants/divorced_employed_good_credit'
@@ -14,11 +22,15 @@ files = [
 ]
 
 print('=== Document Upload Test ===')
+start = time.time()
 response = requests.post(
     f'http://localhost:8000/api/v1/applications/{app_id}/chat',
     data={'text': 'Here are all my documents for the application.'},
     files=[('files', (name, f, 'application/octet-stream')) for name, f in files]
 )
+duration_ms = (time.time() - start) * 1000
+
+logger.info("document_upload", application_id=app_id, status_code=response.status_code, duration_ms=round(duration_ms, 2), document_count=len(files))
 
 print('Status:', response.status_code)
 data = response.json()

@@ -8,23 +8,63 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from src.agents.orchestrator.di import _make_assistant_message
+from src.utils.circuit_breaker import CircuitBreaker
 from src.utils.retry import retry_transient
+from src.utils.state_size import check_state_size
 
 if TYPE_CHECKING:
     from src.agents.state import ApplicantState
 
 logger = structlog.get_logger(__name__)
 
+# Circuit breakers for subgraph invocations
+# Opens after 3 failures, tests recovery after 5 minutes
+_extraction_circuit = CircuitBreaker(
+    failure_threshold=3, recovery_timeout=300, name="extraction_subgraph"
+)
+_validation_circuit = CircuitBreaker(
+    failure_threshold=3, recovery_timeout=300, name="validation_subgraph"
+)
 
+
+async def _extraction_fallback(state: dict[str, Any]) -> dict[str, Any]:
+    """Fallback when extraction circuit is open."""
+    logger.warning(
+        "extraction_circuit_open_using_fallback",
+        application_id=state.get("application_id"),
+    )
+    return {
+        "extracted_data": {},
+        "gate_status": "failed",
+        "gate_errors": [{"error": "Extraction service temporarily unavailable"}],
+        "extraction_results": [],
+    }
+
+
+async def _validation_fallback(state: dict[str, Any]) -> dict[str, Any]:
+    """Fallback when validation circuit is open."""
+    logger.warning(
+        "validation_circuit_open_using_fallback",
+        application_id=state.get("application_id"),
+    )
+    return {
+        "validation_results": {"status": "skipped", "error": "Validation service temporarily unavailable"},
+        "discrepancies": [],
+        "gate_status": "passed",
+    }
+
+
+@_extraction_circuit(fallback=_extraction_fallback)
 @retry_transient(max_retries=3, base_delay=1.0)
 async def _invoke_extraction_subgraph(graph: Any, state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
-    """Invoke extraction subgraph with retry logic for transient failures."""
+    """Invoke extraction subgraph with retry and circuit breaker logic."""
     return await graph.ainvoke(state, config=config)
 
 
+@_validation_circuit(fallback=_validation_fallback)
 @retry_transient(max_retries=3, base_delay=1.0)
 async def _invoke_validation_subgraph(state: dict[str, Any]) -> dict[str, Any]:
-    """Invoke validation subgraph with retry logic for transient failures."""
+    """Invoke validation subgraph with retry and circuit breaker logic."""
     from src.agents.validation.graph import run_validation_agent
     return await run_validation_agent(state)
 
@@ -61,6 +101,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
         graph = get_extraction_subgraph()
         config = {"configurable": {"thread_id": f"{application_id}_extraction", "recursion_limit": 10}}
         result = await _invoke_extraction_subgraph(graph, state, config)
+        extraction_results = result.get("extraction_results", [])
         gate_status = result.get("gate_status", "unknown")
         logger.info("extraction_agent_complete", document_count=len(result.get("extracted_data", {})), gate_status=gate_status)
 
@@ -71,6 +112,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
             logger.warning("extraction_gate_failed", gate_errors=result.get("gate_errors"))
             return {
                 "extracted_data": {},
+                "extraction_results": extraction_results,
                 "validation_results": {"overall_confidence": 0.0},
                 "validation_confidence": 0.0,
                 "discrepancies": [],
@@ -100,6 +142,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
             trace.span(name="document_extraction", input={"applicant_id": applicant_id}, output={"error": str(e)}, level="ERROR")
         return {
             "extracted_data": {},
+            "extraction_results": [{"status": "failed", "error": str(e)}],
             "validation_results": {"overall_confidence": 0.0},
             "validation_confidence": 0.0,
             "discrepancies": [],
@@ -113,7 +156,7 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
     validation_results: dict = {}
     discrepancies: list = []
     try:
-        val_result = await _invoke_validation_subgraph({**state, "extracted_data": extracted_data})
+        val_result = await _invoke_validation_subgraph({**state, "extracted_data": extracted_data, "extraction_results": extraction_results})
         validation_results = val_result.get("validation_results", {})
         discrepancies = val_result.get("discrepancies", [])
         logger.info("validation_agent_complete", discrepancy_count=len(discrepancies), gate_status=val_result.get("gate_status"))
@@ -140,9 +183,11 @@ async def processing_node(state: dict[str, Any]) -> dict[str, Any]:
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", node="processing", duration_ms=round(duration_ms, 2), extraction_count=len(extracted_data), discrepancy_count=len(discrepancies), validation_confidence=validation_results.get("overall_confidence"))
+    check_state_size(state, node_name="processing", application_id=application_id)
 
     return {
         "extracted_data": extracted_data,
+        "extraction_results": extraction_results,
         "validation_results": validation_results,
         "validation_confidence": validation_results.get("overall_confidence", 0.0),
         "discrepancies": discrepancies,

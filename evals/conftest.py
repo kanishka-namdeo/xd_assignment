@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 EVALS_DATA_DIR = Path(__file__).parent.parent / "data" / "test_applicants"
 PROFILES_FILE = EVALS_DATA_DIR / "profiles.json"
@@ -17,7 +20,14 @@ def golden_profiles() -> dict[str, dict]:
     with open(PROFILES_FILE, encoding="utf-8") as f:
         data = json.load(f)
     profiles = data.get("profiles", [])
-    return {p["profile_name"]: p for p in profiles}
+    profile_map = {p["profile_name"]: p for p in profiles}
+
+    logger.info(
+        "golden_profiles_loaded",
+        profile_count=len(profile_map),
+        profiles=list(profile_map.keys()),
+    )
+    return profile_map
 
 
 @pytest.fixture

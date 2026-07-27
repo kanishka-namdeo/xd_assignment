@@ -29,6 +29,7 @@ def _to_application_response(app) -> ApplicationResponse:
         status=app.status,
         current_phase=app.current_phase,
         eligibility_score=app.eligibility_score,
+        validation_confidence=app.validation_confidence,
         decision=app.decision,
         decision_explanation=app.decision_explanation,
         created_at=app.created_at,

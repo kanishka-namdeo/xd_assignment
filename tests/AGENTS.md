@@ -16,6 +16,12 @@ Mirror `src/` structure in `tests/unit/`:
 - `tests/unit/domain/` - Domain logic tests
 - `tests/unit/infrastructure/` - Infrastructure tests
 
+### API and Utility Test Files
+- `tests/unit/api/test_health.py` — 146 lines: Health check endpoint tests
+- `tests/unit/utils/test_state_size.py` — 102 lines: State size estimation/monitoring tests
+- `tests/unit/utils/test_circuit_breaker.py` — Circuit breaker pattern tests
+- `tests/unit/utils/test_error_classifier.py` — Error classification tests
+
 ### Agent Test Files
 The following agent test suites cover the core LangGraph agents:
 
@@ -24,6 +30,10 @@ The following agent test suites cover the core LangGraph agents:
 - `tests/unit/agents/test_validation.py` — 29 tests covering per-document validation, cross-document comparison, discrepancy classification, clarification generation, confidence scoring, reflexion loop, and gate 2 integration
 - `tests/unit/agents/test_eligibility.py` — 27 tests covering feature engineering, ML prediction, factor adjustment, and gate 3 integration
 - `tests/unit/agents/test_decision.py` — 39 tests covering decision logic, explanation generation, enablement packaging, formatting, routing, ReAct node behavior, and deterministic synthesis
+- `tests/unit/agents/test_checkpointer.py` — 10 tests covering shared checkpointer factory, singleton pattern, and TTL cleanup task
+- `tests/unit/agents/test_state.py` — 8 tests covering state reducers for list fields
+- `tests/unit/agents/test_graph_caching.py` — 2 tests covering graph compilation caching for extraction and eligibility
+- `tests/unit/agents/test_review_state_mutation.py` — State mutation review tests
 
 ### Domain Test Files
 - `tests/unit/domain/test_emirates_id.py` — 9 tests covering Emirates ID generation and validation

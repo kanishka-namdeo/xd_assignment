@@ -19,6 +19,21 @@ API_BASE = "http://localhost:8000"
 UPLOAD_DIR = Path("data/uploads")
 
 
+def _normalize_message(msg: dict[str, Any]) -> dict[str, Any]:
+    """Normalize LangChain message format to UI format.
+
+    LangGraph's add_messages reducer returns messages with 'type' keys
+    (human/ai/system), but the UI expects 'role' keys (user/assistant/system).
+    """
+    if "role" in msg:
+        return msg
+    normalized = dict(msg)
+    msg_type = normalized.pop("type", "unknown")
+    type_to_role = {"human": "user", "ai": "assistant", "system": "system"}
+    normalized["role"] = type_to_role.get(msg_type, "assistant")
+    return normalized
+
+
 def _save_files(application_id: str, files: list[dict[str, Any]]) -> list[str]:
     """Persist uploaded files to disk and return their paths."""
     upload_dir = UPLOAD_DIR / application_id
@@ -293,12 +308,15 @@ def render_chat_area() -> None:
     if not st.session_state.get("messages") and st.session_state.get("state_snapshot"):
         snapshot = st.session_state["state_snapshot"]
         if "messages" in snapshot:
-            st.session_state.messages = snapshot["messages"]
+            st.session_state.messages = [
+                _normalize_message(m) for m in snapshot["messages"]
+            ]
             logger.info("messages_restored_from_snapshot", count=len(st.session_state.messages))
 
     messages = st.session_state.get("messages", [])
 
     for msg in messages:
+        msg = _normalize_message(msg)
         with st.chat_message(msg["role"]):
             if msg["role"] == "assistant" and msg.get("decision_card"):
                 render_decision_card(msg["decision_card"])

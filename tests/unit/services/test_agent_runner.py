@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import pytest
+import structlog
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.services.agent_runner import run, run_streaming, _process_stream_event
+
+logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +50,7 @@ def _set_astream_events(graph, events: list[dict]):
 @pytest.mark.asyncio
 async def test_streaming_yields_phase_transitions():
     """run_streaming yields phase_transition events when current_phase changes."""
+    logger.debug("test_start", test="streaming_phase_transitions")
     graph = _mock_graph()
 
     # Simulate two node outputs with different phases

@@ -56,5 +56,8 @@ class Settings(BaseSettings):
     CHECKPOINT_TTL_DAYS: int = 30  # Delete checkpoints older than this
     CHECKPOINT_CLEANUP_INTERVAL_MINUTES: int = 60  # Run cleanup every hour
 
+    # State size monitoring
+    STATE_SIZE_WARNING_KB: int = 50  # Warn when state exceeds this size per checkpoint
+
 
 settings = Settings()

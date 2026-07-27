@@ -13,6 +13,8 @@ from src.infrastructure.db.session import get_session_factory
 from src.infrastructure.graph.driver import get_driver as get_neo4j_driver
 from src.infrastructure.vector.client import get_client as get_qdrant_client
 from src.services.application_service import ApplicationService
+from src.services.auth_service import AuthService
+from src.services.chat_service import ChatService
 from src.services.decision_service import DecisionService
 from src.services.document_service import DocumentService
 from src.services.eligibility_service import EligibilityService
@@ -53,6 +55,14 @@ async def get_qdrant() -> AsyncGenerator[AsyncQdrantClient, None]:
 
 def get_application_service(db: AsyncSession = Depends(get_db)) -> ApplicationService:
     return ApplicationService(db)
+
+
+def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
+    return AuthService(db)
+
+
+def get_chat_service(db: AsyncSession = Depends(get_db)) -> ChatService:
+    return ChatService(db)
 
 
 def get_document_service(db: AsyncSession = Depends(get_db)) -> DocumentService:

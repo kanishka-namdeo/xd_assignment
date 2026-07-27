@@ -7,12 +7,16 @@ Tests cover:
 
 from __future__ import annotations
 
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
 from src.agents.orchestrator.graph import build_orchestrator_graph
 from src.agents.orchestrator.nodes import inject_llm_client, inject_services
+
+logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -122,13 +126,18 @@ class TestFullPhaseFlow:
 
         Asserts final state has decision, eligibility_score, and enablement_recommendations.
         """
+        start = time.perf_counter()
+        logger.info("test_full_flow_from_authentication_start", test_case="full_phase_flow")
+
         # Set up mock subgraphs
         with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_subgraphs["extraction"]):
             with patch("src.agents.validation.graph.run_validation_agent", return_value=mock_subgraphs["validation_result"]):
                 with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_subgraphs["eligibility"]):
-                    with patch.dict("src.agents.decision.graph.__dict__", {"decision_agent": mock_subgraphs["decision"]}):
+                    with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_subgraphs["decision"]):
                         # Build and compile the graph (no checkpointer for test isolation)
+                        build_start = time.perf_counter()
                         graph = build_orchestrator_graph()
+                        logger.info("graph_built", duration_ms=round((time.perf_counter() - build_start) * 1000, 2))
 
                         initial_state = {
                             "messages": [{"role": "user", "content": "My Emirates ID is 784199012345678"}],
@@ -157,14 +166,22 @@ class TestFullPhaseFlow:
                         }
 
                         config = {"configurable": {"thread_id": "test-full-flow-001"}}
+                        invoke_start = time.perf_counter()
                         final_state = await graph.ainvoke(initial_state, config=config)
+                        logger.info(
+                            "graph_invoked",
+                            application_id="test-application-001",
+                            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+                        )
 
                         # Assert phase transitions occurred
                         assert final_state["current_phase"] == "enablement"
+                        logger.info("phase_transition", from_phase="authentication", to_phase="enablement")
 
                         # Assert decision was made
                         assert final_state.get("decision") == "approved"
                         assert final_state.get("decision_explanation") is not None
+                        logger.info("decision_reached", decision="approved", application_id="test-application-001")
 
                         # Assert eligibility score was computed
                         assert final_state.get("eligibility_score") == 0.78
@@ -177,9 +194,17 @@ class TestFullPhaseFlow:
                         # Assert messages were generated throughout the flow
                         assert len(final_state.get("messages", [])) > 0
 
+                        logger.info(
+                            "test_full_flow_from_authentication_complete",
+                            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                        )
+
     @pytest.mark.asyncio
     async def test_full_flow_with_discrepancies(self, mock_subgraphs):
         """Run flow with discrepancies detected during validation."""
+        start = time.perf_counter()
+        logger.info("test_full_flow_with_discrepancies_start", test_case="discrepancies_flow")
+
         mock_subgraphs["validation_result"] = {
             "validation_results": {"cross_doc_check": "mismatch"},
             "discrepancies": [
@@ -191,7 +216,7 @@ class TestFullPhaseFlow:
         with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_subgraphs["extraction"]):
             with patch("src.agents.validation.graph.run_validation_agent", return_value=mock_subgraphs["validation_result"]):
                 with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_subgraphs["eligibility"]):
-                    with patch.dict("src.agents.decision.graph.__dict__", {"decision_agent": mock_subgraphs["decision"]}):
+                    with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_subgraphs["decision"]):
                         graph = build_orchestrator_graph()
 
                         initial_state = {
@@ -221,11 +246,30 @@ class TestFullPhaseFlow:
                         }
 
                         config = {"configurable": {"thread_id": "test-discrepancies-001"}}
+                        invoke_start = time.perf_counter()
                         final_state = await graph.ainvoke(initial_state, config=config)
+                        logger.info(
+                            "graph_invoked",
+                            application_id="test-application-002",
+                            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+                        )
 
                         assert final_state["current_phase"] == "enablement"
+                        logger.info("phase_transition", from_phase="authentication", to_phase="enablement")
+
                         # Discrepancies should be carried through
                         assert len(final_state.get("discrepancies", [])) == 1
+                        logger.info(
+                            "discrepancies_detected",
+                            application_id="test-application-002",
+                            discrepancy_count=1,
+                            discrepancy_type="income_variance",
+                        )
+
+                        logger.info(
+                            "test_full_flow_with_discrepancies_complete",
+                            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                        )
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +285,9 @@ class TestResumeApplication:
 
         Asserts the orchestrator does not execute auth/intake nodes.
         """
+        start = time.perf_counter()
+        logger.info("test_resume_from_processing_start", resume_phase="processing")
+
         auth_called = []
         intake_called = []
 
@@ -255,7 +302,7 @@ class TestResumeApplication:
         with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_subgraphs["extraction"]):
             with patch("src.agents.validation.graph.run_validation_agent", return_value=mock_subgraphs["validation_result"]):
                 with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_subgraphs["eligibility"]):
-                    with patch.dict("src.agents.decision.graph.__dict__", {"decision_agent": mock_subgraphs["decision"]}):
+                    with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_subgraphs["decision"]):
                         graph = build_orchestrator_graph()
 
                         initial_state = {
@@ -288,12 +335,26 @@ class TestResumeApplication:
                         }
 
                         config = {"configurable": {"thread_id": "test-resume-001"}}
+                        invoke_start = time.perf_counter()
                         final_state = await graph.ainvoke(initial_state, config=config)
+                        logger.info(
+                            "graph_invoked",
+                            application_id="existing-application-001",
+                            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+                        )
 
                         # Should reach enablement
                         assert final_state["current_phase"] == "enablement"
+                        logger.info("phase_transition", from_phase="processing", to_phase="enablement")
+
                         assert final_state.get("decision") == "approved"
                         assert final_state.get("eligibility_score") == 0.78
+                        logger.info("decision_reached", decision="approved", application_id="existing-application-001")
+
+                        logger.info(
+                            "test_resume_from_processing_complete",
+                            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                        )
 
     @pytest.mark.asyncio
     async def test_resume_from_decision(self, mock_subgraphs):
@@ -301,10 +362,13 @@ class TestResumeApplication:
 
         Asserts the orchestrator jumps directly to decision logic.
         """
+        start = time.perf_counter()
+        logger.info("test_resume_from_decision_start", resume_phase="decision")
+
         with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_subgraphs["extraction"]):
             with patch("src.agents.validation.graph.run_validation_agent", return_value=mock_subgraphs["validation_result"]):
                 with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_subgraphs["eligibility"]):
-                    with patch.dict("src.agents.decision.graph.__dict__", {"decision_agent": mock_subgraphs["decision"]}):
+                    with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_subgraphs["decision"]):
                         graph = build_orchestrator_graph()
 
                         initial_state = {
@@ -340,9 +404,23 @@ class TestResumeApplication:
                         }
 
                         config = {"configurable": {"thread_id": "test-resume-decision-001"}}
+                        invoke_start = time.perf_counter()
                         final_state = await graph.ainvoke(initial_state, config=config)
+                        logger.info(
+                            "graph_invoked",
+                            application_id="existing-application-002",
+                            duration_ms=round((time.perf_counter() - invoke_start) * 1000, 2),
+                        )
 
                         assert final_state["current_phase"] == "enablement"
+                        logger.info("phase_transition", from_phase="decision", to_phase="enablement")
+
                         assert final_state.get("decision") == "approved"
                         assert final_state.get("eligibility_score") == 0.78
                         assert "enablement_recommendations" in final_state
+                        logger.info("decision_reached", decision="approved", application_id="existing-application-002")
+
+                        logger.info(
+                            "test_resume_from_decision_complete",
+                            duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                        )

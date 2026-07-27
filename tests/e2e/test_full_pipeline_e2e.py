@@ -9,14 +9,18 @@ Tests cover:
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
 from src.agents.orchestrator.graph import build_orchestrator_graph
 from src.agents.orchestrator.nodes import inject_llm_client, inject_services
 from src.agents.state import ApplicantState
+
+logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +127,9 @@ class TestFullPipelineWithSyntheticApplicant:
     @pytest.mark.asyncio
     async def test_approved_pipeline_full_flow(self, orchestrator_graph, base_state, approved_profile):
         """Test full pipeline results in expected decision for approved profile."""
+        start = time.time()
+        logger.info("e2e_test_started", test_name="test_approved_pipeline_full_flow")
+
         applicant = approved_profile.get("applicant", {})
         expected_decision = approved_profile.get("expected_decision", "approved")
 
@@ -139,6 +146,7 @@ class TestFullPipelineWithSyntheticApplicant:
         base_state["uploaded_documents"] = uploaded_docs
         base_state["identity_number"] = applicant.get("identity_number")
         base_state["support_category"] = applicant.get("support_category")
+        logger.info("test_state_initialized", application_id=base_state["application_id"], document_count=len(uploaded_docs))
 
         # Mock LLM client
         mock_llm = AsyncMock()
@@ -186,19 +194,15 @@ class TestFullPipelineWithSyntheticApplicant:
             with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_extraction_graph):
                 with patch("src.agents.validation.graph.run_validation_agent", AsyncMock(return_value=mock_validation_result)):
                     with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
-                        import src.agents.decision.graph as dg
-                        original = getattr(dg, "decision_agent", None)
-                        dg.decision_agent = mock_decision_agent
-                        try:
+                        with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_decision_agent):
                             final_state = await orchestrator_graph.ainvoke(base_state)
-                        finally:
-                            if original is None:
-                                delattr(dg, "decision_agent")
-                            else:
-                                dg.decision_agent = original
+
+        duration_ms = (time.time() - start) * 1000
+        logger.info("agent_graph_executed", application_id=base_state["application_id"], duration_ms=round(duration_ms, 2))
 
         # Assertions on phase progression
         assert final_state["current_phase"] == "enablement"
+        logger.info("phase_transition", application_id=base_state["application_id"], phase="enablement")
 
         # Assert authentication succeeded (phase moved past authentication)
         phases_visited = set()
@@ -209,10 +213,12 @@ class TestFullPipelineWithSyntheticApplicant:
         assert final_state["decision"] == expected_decision, (
             f"Expected decision {expected_decision}, got {final_state['decision']}"
         )
+        logger.info("decision_reached", application_id=base_state["application_id"], decision=final_state["decision"])
 
         # Assert eligibility score was computed
         assert final_state["eligibility_score"] is not None
         assert isinstance(final_state["eligibility_score"], (int, float))
+        logger.info("eligibility_scored", application_id=base_state["application_id"], score=final_state["eligibility_score"])
 
         # Assert enablement recommendations were generated
         recommendations = final_state.get("enablement_recommendations", [])
@@ -224,10 +230,16 @@ class TestFullPipelineWithSyntheticApplicant:
         # Assert validation ran
         assert "validation_results" in final_state
 
+        total_duration_ms = (time.time() - start) * 1000
+        logger.info("e2e_test_completed", test_name="test_approved_pipeline_full_flow", duration_ms=round(total_duration_ms, 2))
+
     @pytest.mark.e2e
     @pytest.mark.asyncio
     async def test_pipeline_tracks_all_phases(self, orchestrator_graph, base_state):
         """Test that the pipeline progresses through all 7 phases sequentially."""
+        start = time.time()
+        logger.info("e2e_test_started", test_name="test_pipeline_tracks_all_phases")
+
         base_state["identity_number"] = "784-1990-1234567-8"
         base_state["support_category"] = "divorced"
         base_state["uploaded_documents"] = [
@@ -270,19 +282,19 @@ class TestFullPipelineWithSyntheticApplicant:
             with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_extraction_graph):
                 with patch("src.agents.validation.graph.run_validation_agent", AsyncMock(return_value=mock_validation_result)):
                     with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
-                        import src.agents.decision.graph as dg
-                        original = getattr(dg, "decision_agent", None)
-                        dg.decision_agent = mock_decision_agent
-                        try:
+                        with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_decision_agent):
                             final_state = await orchestrator_graph.ainvoke(base_state)
-                        finally:
-                            if original is None:
-                                delattr(dg, "decision_agent")
-                            else:
-                                dg.decision_agent = original
+
+        duration_ms = (time.time() - start) * 1000
+        logger.info("agent_graph_executed", application_id=base_state["application_id"], duration_ms=round(duration_ms, 2))
 
         assert final_state["current_phase"] == "enablement"
+        logger.info("phase_transition", application_id=base_state["application_id"], phase="enablement")
         assert final_state["decision"] == "approved"
+        logger.info("decision_reached", application_id=base_state["application_id"], decision=final_state["decision"])
+
+        total_duration_ms = (time.time() - start) * 1000
+        logger.info("e2e_test_completed", test_name="test_pipeline_tracks_all_phases", duration_ms=round(total_duration_ms, 2))
 
 
 # ---------------------------------------------------------------------------
@@ -296,6 +308,9 @@ class TestPipelineWithInjectedDiscrepancies:
     @pytest.mark.asyncio
     async def test_discrepancies_detected_and_flagged(self, orchestrator_graph, base_state):
         """Test that validation agent detects discrepancies and decision is manual_review."""
+        start = time.time()
+        logger.info("e2e_test_started", test_name="test_discrepancies_detected_and_flagged")
+
         base_state["identity_number"] = "784-1990-1234567-8"
         base_state["support_category"] = "divorced"
         base_state["uploaded_documents"] = [
@@ -357,32 +372,35 @@ class TestPipelineWithInjectedDiscrepancies:
             with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_extraction_graph):
                 with patch("src.agents.validation.graph.run_validation_agent", AsyncMock(return_value=mock_validation_result)):
                     with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
-                        import src.agents.decision.graph as dg
-                        original = getattr(dg, "decision_agent", None)
-                        dg.decision_agent = mock_decision_agent
-                        try:
+                        with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_decision_agent):
                             final_state = await orchestrator_graph.ainvoke(base_state)
-                        finally:
-                            if original is None:
-                                delattr(dg, "decision_agent")
-                            else:
-                                dg.decision_agent = original
+
+        duration_ms = (time.time() - start) * 1000
+        logger.info("agent_graph_executed", application_id=base_state["application_id"], duration_ms=round(duration_ms, 2))
 
         # Assert discrepancies were detected
         discrepancies = final_state.get("discrepancies", [])
         assert len(discrepancies) > 0, "Expected discrepancies to be detected"
         assert discrepancies[0]["type"] == "identity_mismatch"
         assert discrepancies[0]["severity"] == "critical"
+        logger.info("discrepancy_detected", application_id=base_state["application_id"], discrepancy_type="identity_mismatch", severity="critical")
 
         # Assert decision is manual_review due to discrepancies
         assert final_state["decision"] == "manual_review", (
             f"Expected manual_review due to discrepancies, got {final_state['decision']}"
         )
+        logger.info("decision_reached", application_id=base_state["application_id"], decision=final_state["decision"], reason="discrepancy")
+
+        total_duration_ms = (time.time() - start) * 1000
+        logger.info("e2e_test_completed", test_name="test_discrepancies_detected_and_flagged", duration_ms=round(total_duration_ms, 2))
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
     async def test_name_mismatch_discrepancy(self, orchestrator_graph, base_state):
         """Test pipeline with name mismatch across documents."""
+        start = time.time()
+        logger.info("e2e_test_started", test_name="test_name_mismatch_discrepancy")
+
         base_state["identity_number"] = "784-1990-1234567-8"
         base_state["support_category"] = "divorced"
         base_state["messages"] = [{"role": "user", "content": "I am divorced"}]
@@ -434,21 +452,21 @@ class TestPipelineWithInjectedDiscrepancies:
             with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_extraction_graph):
                 with patch("src.agents.validation.graph.run_validation_agent", AsyncMock(return_value=mock_validation_result)):
                     with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
-                        import src.agents.decision.graph as dg
-                        original = getattr(dg, "decision_agent", None)
-                        dg.decision_agent = mock_decision_agent
-                        try:
+                        with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_decision_agent):
                             final_state = await orchestrator_graph.ainvoke(base_state)
-                        finally:
-                            if original is None:
-                                delattr(dg, "decision_agent")
-                            else:
-                                dg.decision_agent = original
+
+        duration_ms = (time.time() - start) * 1000
+        logger.info("agent_graph_executed", application_id=base_state["application_id"], duration_ms=round(duration_ms, 2))
 
         discrepancies = final_state.get("discrepancies", [])
         assert len(discrepancies) > 0
         assert discrepancies[0]["type"] == "name_mismatch"
+        logger.info("discrepancy_detected", application_id=base_state["application_id"], discrepancy_type="name_mismatch", severity="warning")
         assert final_state["decision"] == "manual_review"
+        logger.info("decision_reached", application_id=base_state["application_id"], decision=final_state["decision"], reason="name_mismatch")
+
+        total_duration_ms = (time.time() - start) * 1000
+        logger.info("e2e_test_completed", test_name="test_name_mismatch_discrepancy", duration_ms=round(total_duration_ms, 2))
 
 
 # ---------------------------------------------------------------------------
@@ -462,6 +480,9 @@ class TestPipelineWithMissingDocuments:
     @pytest.mark.asyncio
     async def test_missing_documents_gate_failure(self, orchestrator_graph, base_state):
         """Test that missing required documents cause Gate 2 failure and manual_review decision."""
+        start = time.time()
+        logger.info("e2e_test_started", test_name="test_missing_documents_gate_failure")
+
         base_state["identity_number"] = "784-1990-1234567-8"
         base_state["support_category"] = "divorced"
         # Only provide 2 of 4 required documents for divorced category
@@ -471,6 +492,7 @@ class TestPipelineWithMissingDocuments:
             # Missing: credit_report, application_form
         ]
         base_state["messages"] = [{"role": "user", "content": "I am divorced"}]
+        logger.info("test_state_initialized", application_id=base_state["application_id"], document_count=2, missing_count=2)
 
         mock_llm = AsyncMock()
         mock_llm.provider = "streamlake"
@@ -520,37 +542,41 @@ class TestPipelineWithMissingDocuments:
             with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_extraction_graph):
                 with patch("src.agents.validation.graph.run_validation_agent", AsyncMock(return_value=mock_validation_result)):
                     with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
-                        import src.agents.decision.graph as dg
-                        original = getattr(dg, "decision_agent", None)
-                        dg.decision_agent = mock_decision_agent
-                        try:
+                        with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_decision_agent):
                             final_state = await orchestrator_graph.ainvoke(base_state)
-                        finally:
-                            if original is None:
-                                delattr(dg, "decision_agent")
-                            else:
-                                dg.decision_agent = original
+
+        duration_ms = (time.time() - start) * 1000
+        logger.info("agent_graph_executed", application_id=base_state["application_id"], duration_ms=round(duration_ms, 2))
 
         # Assert Gate 2 failed (validation_results contain missing document info)
         validation_results = final_state.get("validation_results", {})
         assert validation_results.get("completeness_check") == "failed" or "missing_documents" in validation_results
+        logger.info("gate_failed", application_id=base_state["application_id"], gate="completeness_check", missing_documents=["credit_report", "application_form"])
 
         # Assert decision is manual_review due to missing documents
         assert final_state["decision"] == "manual_review", (
             f"Expected manual_review due to missing documents, got {final_state['decision']}"
         )
+        logger.info("decision_reached", application_id=base_state["application_id"], decision=final_state["decision"], reason="missing_documents")
 
         # Assert discrepancies list is empty (no cross-doc mismatch, just missing docs)
         assert final_state.get("discrepancies", []) == []
+
+        total_duration_ms = (time.time() - start) * 1000
+        logger.info("e2e_test_completed", test_name="test_missing_documents_gate_failure", duration_ms=round(total_duration_ms, 2))
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
     async def test_no_documents_at_all(self, orchestrator_graph, base_state):
         """Test pipeline with zero uploaded documents."""
+        start = time.time()
+        logger.info("e2e_test_started", test_name="test_no_documents_at_all")
+
         base_state["identity_number"] = "784-1990-1234567-8"
         base_state["support_category"] = "divorced"
         base_state["uploaded_documents"] = []  # No documents at all
         base_state["messages"] = [{"role": "user", "content": "I am divorced and uploading documents"}]
+        logger.info("test_state_initialized", application_id=base_state["application_id"], document_count=0)
 
         mock_llm = AsyncMock()
         mock_llm.provider = "streamlake"
@@ -593,16 +619,16 @@ class TestPipelineWithMissingDocuments:
             with patch("src.agents.extraction.graph.get_extraction_subgraph", return_value=mock_extraction_graph):
                 with patch("src.agents.validation.graph.run_validation_agent", AsyncMock(return_value=mock_validation_result)):
                     with patch("src.agents.eligibility.graph.get_eligibility_graph", return_value=mock_eligibility_graph):
-                        import src.agents.decision.graph as dg
-                        original = getattr(dg, "decision_agent", None)
-                        dg.decision_agent = mock_decision_agent
-                        try:
+                        with patch("src.agents.decision.graph.get_decision_agent", return_value=mock_decision_agent):
                             final_state = await orchestrator_graph.ainvoke(base_state)
-                        finally:
-                            if original is None:
-                                delattr(dg, "decision_agent")
-                            else:
-                                dg.decision_agent = original
+
+        duration_ms = (time.time() - start) * 1000
+        logger.info("agent_graph_executed", application_id=base_state["application_id"], duration_ms=round(duration_ms, 2))
 
         assert final_state["decision"] == "manual_review"
+        logger.info("decision_reached", application_id=base_state["application_id"], decision=final_state["decision"], reason="no_documents")
         assert final_state["current_phase"] == "enablement"
+        logger.info("phase_transition", application_id=base_state["application_id"], phase="enablement")
+
+        total_duration_ms = (time.time() - start) * 1000
+        logger.info("e2e_test_completed", test_name="test_no_documents_at_all", duration_ms=round(total_duration_ms, 2))

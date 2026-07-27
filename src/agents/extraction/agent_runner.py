@@ -25,7 +25,7 @@ def build_extraction_agent(llm):
     agent = create_agent(
         model=llm,
         tools=ALL_EXTRACTION_TOOLS,
-        prompt=EXTRACTION_SYSTEM_PROMPT,
+        system_prompt=EXTRACTION_SYSTEM_PROMPT,
     )
     logger.info(
         "react_agent_built",

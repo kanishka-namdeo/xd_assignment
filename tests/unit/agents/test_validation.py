@@ -1,6 +1,7 @@
 ﻿"""Validation agent unit tests."""
 
 import pytest
+import structlog
 from unittest.mock import MagicMock, patch
 
 from src.agents.validation.tools import (
@@ -15,6 +16,8 @@ from src.agents.validation.nodes import (
     evaluate_validation_node,
     critique_validation_node,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 class TestPerDocumentValidationTool:

@@ -17,6 +17,7 @@ class ApplicationResponse(BaseModel):
     status: str
     current_phase: str
     eligibility_score: float | None = None
+    validation_confidence: float | None = None
     decision: str | None = None
     decision_explanation: str | None = None
     created_at: datetime

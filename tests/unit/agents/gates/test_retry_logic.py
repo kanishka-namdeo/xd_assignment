@@ -2,8 +2,11 @@
 
 import pytest
 import asyncio
+import structlog
 
 from src.agents.gates.retry_logic import execute_with_gate, execute_with_gate_sync
+
+logger = structlog.get_logger(__name__)
 
 
 class TestExecuteWithGateSync:
@@ -66,6 +69,7 @@ class TestExecuteWithGateSync:
             return False, [f"Error on attempt {state.get('attempt', 0)}"]
 
         state = {"initial": "data"}
+        logger.debug("test_start", test="gate_fails_all_retries", max_retries=2)
         result = execute_with_gate_sync(agent_func, gate_func, state, max_retries=2)
 
         assert call_count == 3  # Initial + 2 retries

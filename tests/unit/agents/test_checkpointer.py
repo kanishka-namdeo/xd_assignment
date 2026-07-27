@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
 import src.agents.checkpointer as checkpointer_module
 from src.agents.checkpointer import (
@@ -11,15 +12,19 @@ from src.agents.checkpointer import (
     get_checkpointer_manager,
 )
 
+logger = structlog.get_logger(__name__)
+
 
 @pytest.fixture(autouse=True)
 def reset_checkpointer_singleton():
     """Reset the singleton before each test."""
+    logger.debug("test_setup", test="reset_checkpointer_singleton")
     checkpointer_module._checkpointer = None
     checkpointer_module._manager = None
     yield
     checkpointer_module._checkpointer = None
     checkpointer_module._manager = None
+    logger.debug("test_teardown", test="reset_checkpointer_singleton")
 
 
 def _make_mock_conn():
@@ -70,6 +75,7 @@ async def test_checkpointer_manager_start_stop():
 @pytest.mark.asyncio
 async def test_checkpointer_manager_deletes_old_checkpoints():
     """Test that old checkpoints are deleted during cleanup."""
+    logger.debug("test_start", test="deletes_old_checkpoints")
     with patch("src.agents.checkpointer.psycopg.AsyncConnection.connect") as mock_connect:
         mock_conn, mock_cursor = _make_mock_conn()
         mock_connect.return_value = mock_conn

@@ -30,7 +30,12 @@ from src.infrastructure.db.session import get_session_factory
 logger = structlog.get_logger(__name__)
 
 
-async def build_orchestrator_graph():
+async def get_orchestrator_graph():
+    """Build and compile the orchestrator graph.
+    
+    Returns:
+        Compiled LangGraph StateGraph with checkpointer.
+    """
     # Inject DB session factory for document persistence.
     try:
         factory = get_session_factory(settings)

@@ -17,13 +17,17 @@ CATEGORY_ICONS = {
 }
 
 
-def render_enablement_section(recommendations: list[str] | None = None) -> None:
+def render_enablement_section(recommendations: list[str] | dict | None = None) -> None:
     """Render the enablement section for Phase 6.
 
     Args:
         recommendations: List of recommendation strings to display.
             Each string should be in format "Title: Description".
+            May also be a dict with a 'recommendations' key.
     """
+    if isinstance(recommendations, dict):
+        recommendations = recommendations.get("recommendations", [])
+
     logger.debug("enablement_section_rendered", recommendation_count=len(recommendations) if recommendations else 0)
 
     if not recommendations:

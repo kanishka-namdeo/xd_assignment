@@ -12,6 +12,12 @@ Development and operational scripts for data generation, maintenance, and automa
 ### Script Categories
 - **Data Generation** (`generate_test_data.py`): Generates synthetic test applicant profiles with cross-document consistency
 - **Fresh Account Generation** (`generate_fresh_account.py`): Generates a single fresh applicant account with full document set, supports custom seeds and output directories
+- **E2E Testing** (`e2e_test.py`, `final_e2e_test.py`, `continue_e2e_test.py`, `stream_e2e_test.py`): End-to-end testing scripts for various scenarios
+- **Database Maintenance** (`check_db.py`, `check_db_column.py`, `check_column.py`, `add_validation_confidence_column.py`, `apply_checkpoint_migration.py`): Database inspection and migration scripts
+- **Demo/Smoke Tests** (`demo_smoke_test.py`, `quick_smoke_test.py`): Quick validation scripts
+- **API Testing** (`test_fastapi.py`, `test_persist.py`): API and persistence testing
+- **Streaming Tests** (`long_stream_test.py`, `stream_upload_test.py`, `upload_and_process.py`): Streaming functionality tests
+- **Browser E2E** (`browser_e2e_test.py`): Playwright-based browser automation testing
 
 ### Execution Requirements
 - All scripts must use the project venv: `.\.venv\Scripts\python.exe`

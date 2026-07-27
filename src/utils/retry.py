@@ -48,8 +48,6 @@ def retry_transient(
                         error_type=error_type.value,
                     )
                     await asyncio.sleep(delay)
-                    last_error = exc
-            raise last_error  # pragma: no cover – unreachable but explicit
 
         return wrapper
 

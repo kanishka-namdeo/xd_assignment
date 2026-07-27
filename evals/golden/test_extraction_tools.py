@@ -1,13 +1,18 @@
 """Layer 2: Golden dataset validation — extraction tools."""
 
-import pytest
+import time
 from pathlib import Path
+
+import pytest
+import structlog
 
 from src.agents.extraction.tools import (
     ocr_extract_tool,
     pdf_parse_tool,
     confidence_score_tool,
 )
+
+logger = structlog.get_logger(__name__)
 
 EVALS_DATA_DIR = Path(__file__).parent.parent.parent / "data" / "test_applicants"
 
@@ -27,7 +32,17 @@ class TestExtractionGoldenDataset:
         if not file_path.exists():
             pytest.skip(f"File not found: {file_path}")
 
+        start = time.perf_counter()
         result = ocr_extract_tool.invoke({"file_path": str(file_path)})
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        logger.info(
+            "tool_invoked",
+            tool="ocr_extract_tool",
+            document_type="emirates_id",
+            duration_ms=round(duration_ms, 2),
+            has_error="error" in result,
+        )
         assert "error" not in result
         assert "text" in result or "blocks" in result
         assert result.get("confidence", 0) > 0
@@ -43,7 +58,17 @@ class TestExtractionGoldenDataset:
         if not file_path.exists():
             pytest.skip(f"File not found: {file_path}")
 
+        start = time.perf_counter()
         result = pdf_parse_tool.invoke({"file_path": str(file_path)})
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        logger.info(
+            "tool_invoked",
+            tool="pdf_parse_tool",
+            document_type="bank_statement",
+            duration_ms=round(duration_ms, 2),
+            has_error="error" in result,
+        )
         assert "error" not in result
         assert "markdown" in result or "json_structure" in result
 
@@ -53,8 +78,18 @@ class TestExtractionGoldenDataset:
         if not emirates_data:
             pytest.skip("No emirates_id data in profile")
 
+        start = time.perf_counter()
         result = confidence_score_tool.invoke({
             "extracted_data": emirates_data,
             "document_type": "emirates_id",
         })
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        logger.info(
+            "tool_invoked",
+            tool="confidence_score_tool",
+            document_type="emirates_id",
+            duration_ms=round(duration_ms, 2),
+            has_error="error" in result,
+        )
         assert "error" not in result or result.get("overall_confidence") >= 0

@@ -1,21 +1,29 @@
 """End-to-end system test for eligibility agent with real test data."""
 
 import json
+import time
 from pathlib import Path
 
 import pytest
+import structlog
 
 from src.agents.eligibility.graph import get_eligibility_graph
+
+logger = structlog.get_logger(__name__)
 
 
 @pytest.mark.asyncio
 async def test_eligibility_agent_e2e_divorced_employed():
     """Test eligibility agent end-to-end with divorced_employed_good_credit profile."""
+    start = time.time()
+    logger.info("system_test_started", test_name="test_eligibility_agent_e2e_divorced_employed")
+
     # Load test profile
     profile_path = Path("data/test_applicants/divorced_employed_good_credit/profile.json")
     with open(profile_path, "r", encoding="utf-8") as f:
         profile_data = json.load(f)
-    
+    logger.info("test_profile_loaded", profile="divorced_employed_good_credit")
+
     # Build extracted_data from profile
     extracted_data = {
         "emirates_id": profile_data["documents"]["emirates_id"]["data"],
@@ -23,7 +31,7 @@ async def test_eligibility_agent_e2e_divorced_employed():
         "credit_report": profile_data["documents"]["credit_report"]["data"],
         "application_form": profile_data["documents"]["application_form"]["data"],
     }
-    
+
     # Build initial state
     initial_state = {
         "messages": [],
@@ -58,37 +66,45 @@ async def test_eligibility_agent_e2e_divorced_employed():
         "retry_count": 0,
         "escalation_reason": None,
     }
-    
+    logger.info("eligibility_state_initialized", application_id=initial_state["application_id"], document_count=4)
+
     # Run eligibility graph
     graph = get_eligibility_graph()
     final_state = await graph.ainvoke(initial_state)
-    
+
+    duration_ms = (time.time() - start) * 1000
+    logger.info("eligibility_graph_executed", application_id=initial_state["application_id"], duration_ms=round(duration_ms, 2))
+
     # Verify results
     assert final_state["eligibility_score"] is not None
     assert 0.0 <= final_state["eligibility_score"] <= 1.0
     assert final_state["gate_status"] == "passed"
     assert final_state["eligibility_factors"] is not None
     assert len(final_state["messages"]) > 0
-    
+
     # Verify expected decision (approved)
     # Note: The actual decision is made by the decision agent, but eligibility score should be high
     assert final_state["eligibility_score"] >= 0.60, (
         f"Expected eligibility score >= 0.60 for approved profile, got {final_state['eligibility_score']}"
     )
-    
-    print(f"✓ Eligibility score: {final_state['eligibility_score']:.2f}")
-    print(f"✓ Gate status: {final_state['gate_status']}")
-    print(f"✓ Eligibility factors: {list(final_state['eligibility_factors'].keys())}")
+    logger.info("eligibility_verified", application_id=initial_state["application_id"], score=round(final_state["eligibility_score"], 2), gate_status=final_state["gate_status"])
+
+    total_duration_ms = (time.time() - start) * 1000
+    logger.info("system_test_completed", test_name="test_eligibility_agent_e2e_divorced_employed", duration_ms=round(total_duration_ms, 2))
 
 
 @pytest.mark.asyncio
 async def test_eligibility_agent_e2e_abandoned_unemployed():
     """Test eligibility agent end-to-end with abandoned_unemployed_poor_credit profile."""
+    start = time.time()
+    logger.info("system_test_started", test_name="test_eligibility_agent_e2e_abandoned_unemployed")
+
     # Load test profile
     profile_path = Path("data/test_applicants/abandoned_unemployed_poor_credit/profile.json")
     with open(profile_path, "r", encoding="utf-8") as f:
         profile_data = json.load(f)
-    
+    logger.info("test_profile_loaded", profile="abandoned_unemployed_poor_credit")
+
     # Build extracted_data from profile
     extracted_data = {
         "emirates_id": profile_data["documents"]["emirates_id"]["data"],
@@ -96,7 +112,7 @@ async def test_eligibility_agent_e2e_abandoned_unemployed():
         "credit_report": profile_data["documents"]["credit_report"]["data"],
         "application_form": profile_data["documents"]["application_form"]["data"],
     }
-    
+
     # Build initial state
     initial_state = {
         "messages": [],
@@ -131,37 +147,45 @@ async def test_eligibility_agent_e2e_abandoned_unemployed():
         "retry_count": 0,
         "escalation_reason": None,
     }
-    
+    logger.info("eligibility_state_initialized", application_id=initial_state["application_id"], document_count=4)
+
     # Run eligibility graph
     graph = get_eligibility_graph()
     final_state = await graph.ainvoke(initial_state)
-    
+
+    duration_ms = (time.time() - start) * 1000
+    logger.info("eligibility_graph_executed", application_id=initial_state["application_id"], duration_ms=round(duration_ms, 2))
+
     # Verify results
     assert final_state["eligibility_score"] is not None
     assert 0.0 <= final_state["eligibility_score"] <= 1.0
     assert final_state["gate_status"] == "passed"
     assert final_state["eligibility_factors"] is not None
     assert len(final_state["messages"]) > 0
-    
+
     # For abandoned/unemployed with poor credit, score should be moderate
     # (support category helps, but poor credit and unemployment hurt)
     assert 0.40 <= final_state["eligibility_score"] <= 0.70, (
         f"Expected moderate eligibility score for abandoned/unemployed profile, got {final_state['eligibility_score']}"
     )
-    
-    print(f"✓ Eligibility score: {final_state['eligibility_score']:.2f}")
-    print(f"✓ Gate status: {final_state['gate_status']}")
-    print(f"✓ Eligibility factors: {list(final_state['eligibility_factors'].keys())}")
+    logger.info("eligibility_verified", application_id=initial_state["application_id"], score=round(final_state["eligibility_score"], 2), gate_status=final_state["gate_status"])
+
+    total_duration_ms = (time.time() - start) * 1000
+    logger.info("system_test_completed", test_name="test_eligibility_agent_e2e_abandoned_unemployed", duration_ms=round(total_duration_ms, 2))
 
 
 @pytest.mark.asyncio
 async def test_eligibility_agent_e2e_unknown_parentage():
     """Test eligibility agent end-to-end with unknown_parentage_self_employed_borderline profile."""
+    start = time.time()
+    logger.info("system_test_started", test_name="test_eligibility_agent_e2e_unknown_parentage")
+
     # Load test profile
     profile_path = Path("data/test_applicants/unknown_parentage_self_employed_borderline/profile.json")
     with open(profile_path, "r", encoding="utf-8") as f:
         profile_data = json.load(f)
-    
+    logger.info("test_profile_loaded", profile="unknown_parentage_self_employed_borderline")
+
     # Build extracted_data from profile
     extracted_data = {
         "emirates_id": profile_data["documents"]["emirates_id"]["data"],
@@ -169,7 +193,7 @@ async def test_eligibility_agent_e2e_unknown_parentage():
         "credit_report": profile_data["documents"]["credit_report"]["data"],
         "application_form": profile_data["documents"]["application_form"]["data"],
     }
-    
+
     # Build initial state
     initial_state = {
         "messages": [],
@@ -204,23 +228,27 @@ async def test_eligibility_agent_e2e_unknown_parentage():
         "retry_count": 0,
         "escalation_reason": None,
     }
-    
+    logger.info("eligibility_state_initialized", application_id=initial_state["application_id"], document_count=4)
+
     # Run eligibility graph
     graph = get_eligibility_graph()
     final_state = await graph.ainvoke(initial_state)
-    
+
+    duration_ms = (time.time() - start) * 1000
+    logger.info("eligibility_graph_executed", application_id=initial_state["application_id"], duration_ms=round(duration_ms, 2))
+
     # Verify results
     assert final_state["eligibility_score"] is not None
     assert 0.0 <= final_state["eligibility_score"] <= 1.0
     assert final_state["gate_status"] == "passed"
     assert final_state["eligibility_factors"] is not None
     assert len(final_state["messages"]) > 0
-    
+
     # For unknown parentage with self-employment and borderline credit, score should be moderate
     assert 0.45 <= final_state["eligibility_score"] <= 0.75, (
         f"Expected moderate eligibility score for unknown parentage profile, got {final_state['eligibility_score']}"
     )
-    
-    print(f"✓ Eligibility score: {final_state['eligibility_score']:.2f}")
-    print(f"✓ Gate status: {final_state['gate_status']}")
-    print(f"✓ Eligibility factors: {list(final_state['eligibility_factors'].keys())}")
+    logger.info("eligibility_verified", application_id=initial_state["application_id"], score=round(final_state["eligibility_score"], 2), gate_status=final_state["gate_status"])
+
+    total_duration_ms = (time.time() - start) * 1000
+    logger.info("system_test_completed", test_name="test_eligibility_agent_e2e_unknown_parentage", duration_ms=round(total_duration_ms, 2))

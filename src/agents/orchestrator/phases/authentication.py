@@ -9,6 +9,7 @@ import structlog
 
 from src.agents.orchestrator.di import _get_last_message_content, _make_assistant_message
 from src.agents.state import ApplicantState
+from src.utils.state_size import check_state_size
 
 logger = structlog.get_logger(__name__)
 
@@ -50,10 +51,12 @@ async def authentication_node(state: ApplicantState) -> ApplicantState:
             duration_ms=round(duration_ms, 2),
             next_phase="authentication",
         )
-        return {
+        result = {
             "messages": [_make_assistant_message(response)],
             "current_phase": "authentication",
         }
+        check_state_size(state, node_name="authentication", application_id=state.get("application_id"))
+        return result
 
     from src.utils.emirates_id import validate as emirates_id_validate
 
@@ -73,11 +76,13 @@ async def authentication_node(state: ApplicantState) -> ApplicantState:
             next_phase="intake",
             identity_verified=True,
         )
-        return {
+        result = {
             "messages": [_make_assistant_message(response)],
             "current_phase": "intake",
             "identity_number": identity_number,
         }
+        check_state_size(state, node_name="authentication", application_id=state.get("application_id"))
+        return result
     else:
         response = (
             "The Emirates ID number provided could not be verified. "
@@ -92,7 +97,9 @@ async def authentication_node(state: ApplicantState) -> ApplicantState:
             next_phase="authentication",
             identity_verified=False,
         )
-        return {
+        result = {
             "messages": [_make_assistant_message(response)],
             "current_phase": "authentication",
         }
+        check_state_size(state, node_name="authentication", application_id=state.get("application_id"))
+        return result

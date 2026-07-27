@@ -8,14 +8,20 @@ import time
 from pathlib import Path
 
 import requests
+import structlog
 from sqlalchemy import text
 
 from src.config import settings
 from src.infrastructure.db.session import get_engine
+from src.infrastructure.observability.logging import configure_logging
 from src.utils.emirates_id import luhn_check_digit
+
+configure_logging()
 
 API_BASE = "http://localhost:8000"
 BOUNDARY = "----TestBoundary7MA4YWxkTrZu0gW"
+
+logger = structlog.get_logger(__name__)
 
 
 def generate_unique_emirates_id() -> str:
