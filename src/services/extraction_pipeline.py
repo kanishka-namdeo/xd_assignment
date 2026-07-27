@@ -26,11 +26,7 @@ from src.infrastructure.db.repositories.extraction_repo import (
     ResumeRepository,
 )
 from src.infrastructure.db.session import get_session
-from src.infrastructure.extraction_persistence import (
-    create_embedding,
-    create_lineage,
-    store_extraction_data,
-)
+from src.infrastructure.extraction_persistence import store_extraction_data
 from src.infrastructure.graph.document_lineage_repo import DocumentLineageRepository
 from src.infrastructure.graph.models import DocumentNode
 from src.infrastructure.graph.driver import get_driver as get_neo4j_driver
