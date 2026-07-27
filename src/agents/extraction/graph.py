@@ -22,6 +22,8 @@ from src.agents.state import ApplicantState
 
 logger = structlog.get_logger(__name__)
 
+_compiled_graph = None
+
 
 def build_extraction_subgraph() -> StateGraph:
     """Build the extraction subgraph.
@@ -74,4 +76,7 @@ def get_extraction_subgraph() -> StateGraph:
     Returns:
         Compiled StateGraph for extraction.
     """
-    return build_extraction_subgraph()
+    global _compiled_graph
+    if _compiled_graph is None:
+        _compiled_graph = build_extraction_subgraph()
+    return _compiled_graph

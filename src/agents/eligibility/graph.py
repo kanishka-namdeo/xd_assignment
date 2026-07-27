@@ -15,6 +15,8 @@ from src.agents.eligibility.routes import route_after_eligibility_gate
 
 logger = structlog.get_logger(__name__)
 
+_compiled_graph = None
+
 
 def build_eligibility_graph() -> StateGraph:
     """Build the eligibility subgraph with direct tool calls and Gate 3."""
@@ -46,5 +48,8 @@ def build_eligibility_graph() -> StateGraph:
 
 def get_eligibility_graph():
     """Get the compiled eligibility subgraph."""
-    graph = build_eligibility_graph()
-    return graph.compile()
+    global _compiled_graph
+    if _compiled_graph is None:
+        graph = build_eligibility_graph()
+        _compiled_graph = graph.compile()
+    return _compiled_graph
