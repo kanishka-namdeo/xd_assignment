@@ -14,7 +14,7 @@ class ApplicantState(TypedDict):
     current_phase: str
     applicant_id: str
     application_id: str
-    uploaded_files: list[str]
+    uploaded_files: Annotated[list[str], operator.add]
     eligibility_score: float | None
     decision: str | None
     decision_explanation: str | None
