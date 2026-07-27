@@ -96,21 +96,27 @@ async def review_node(state: ApplicantState) -> ApplicantState:
     })
 
     # When resumed, process the user response to update discrepancy resolution status
-    resolved_discrepancies = list(discrepancies)
+    resolved_discrepancies = []
     if user_response:
         # Mark discrepancies as resolved based on user response
         # Simple heuristic: if user provides clarification, mark as resolved
-        for disc in resolved_discrepancies:
-            if disc.get("resolution_status") != "resolved":
+        for disc in discrepancies:
+            # Create a new dict to avoid mutating the original
+            disc_copy = {**disc}
+            if disc_copy.get("resolution_status") != "resolved":
                 # Check if the user response addresses this discrepancy
-                disc_type = disc.get("type", "")
-                disc_message = disc.get("message", "")
+                disc_type = disc_copy.get("type", "")
+                disc_message = disc_copy.get("message", "")
                 if disc_type and disc_type.lower() in str(user_response).lower():
-                    disc["resolution_status"] = "resolved"
-                    disc["resolution"] = str(user_response)
+                    disc_copy["resolution_status"] = "resolved"
+                    disc_copy["resolution"] = str(user_response)
                 elif disc_message and disc_message.lower() in str(user_response).lower():
-                    disc["resolution_status"] = "resolved"
-                    disc["resolution"] = str(user_response)
+                    disc_copy["resolution_status"] = "resolved"
+                    disc_copy["resolution"] = str(user_response)
+            resolved_discrepancies.append(disc_copy)
+    else:
+        # No user response - return original discrepancies unchanged
+        resolved_discrepancies = list(discrepancies)
 
     duration_ms = (time.perf_counter() - start_ms) * 1000
     logger.info("node_exit", node="review", duration_ms=round(duration_ms, 2), next_phase="review", discrepancy_count=len(unresolved))
