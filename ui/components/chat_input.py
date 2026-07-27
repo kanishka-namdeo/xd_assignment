@@ -19,7 +19,12 @@ def validate_file_types(files: list[Any]) -> tuple[list[Any], list[str]]:
 
     for file in files:
         ext = file.name.split(".")[-1].lower() if "." in file.name else ""
-        if ext not in SUPPORTED_FILE_TYPES:
+        if not ext:
+            errors.append(
+                f"No file extension detected for '{file.name}'. "
+                f"Accepted formats: {', '.join(s.upper() for s in SUPPORTED_FILE_TYPES)}"
+            )
+        elif ext not in SUPPORTED_FILE_TYPES:
             errors.append(
                 f"Unsupported file type '.{ext}'. "
                 f"Accepted formats: {', '.join(s.upper() for s in SUPPORTED_FILE_TYPES)}"

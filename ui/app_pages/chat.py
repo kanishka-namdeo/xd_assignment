@@ -9,7 +9,7 @@ from ui.components.document_status import (
     render_document_status,
     render_document_summary,
 )
-from ui.components.accessibility_controls import render_accessibility_controls
+from ui.components.accessibility_controls import render_accessibility_controls, get_accessibility_css
 from ui.components.phase_guidance import render_phase_guidance
 from ui.components.phase_tracker import render_phase_tracker
 from ui.components.help_panel import render_help_panel
@@ -91,8 +91,9 @@ def _render_sidebar() -> None:
         applicant_info = st.session_state.get("applicant_info", {})
         support_category = applicant_info.get("support_category") if isinstance(applicant_info, dict) else None
         render_document_progress(support_category=support_category)
+        uploaded_docs = st.session_state.get("uploaded_documents", {})
         render_document_status(
-            st.session_state.get("uploaded_documents"),
+            list(uploaded_docs.values()) if isinstance(uploaded_docs, dict) else uploaded_docs,
             support_category=support_category,
         )
 
@@ -161,6 +162,12 @@ def render() -> None:
     logger.debug("chat_page_render", phase=st.session_state.get("current_phase", "intake"))
     if not _ensure_authenticated():
         return
+
+    # Inject accessibility CSS on every rerun so it picks up session state changes
+    st.markdown(
+        f"<style>{get_accessibility_css()}</style>",
+        unsafe_allow_html=True,
+    )
 
     _render_header()
     _render_sidebar()

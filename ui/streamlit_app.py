@@ -12,7 +12,6 @@ import structlog
 import streamlit as st
 
 from ui.app_pages import chat, landing
-from ui.components.accessibility_controls import get_accessibility_css
 
 logger = structlog.get_logger(__name__)
 
@@ -21,12 +20,6 @@ _css_path = Path(__file__).resolve().parent / "styles" / "global.css"
 if _css_path.exists():
     _css_content = _css_path.read_text(encoding="utf-8")
     st.markdown(f"<style>{_css_content}</style>", unsafe_allow_html=True)
-
-# Inject accessibility CSS (after global CSS so it can override)
-st.markdown(
-    f"<style>{get_accessibility_css()}</style>",
-    unsafe_allow_html=True,
-)
 
 # ARIA live region for chat updates
 st.markdown(

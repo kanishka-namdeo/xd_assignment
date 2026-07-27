@@ -6,7 +6,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 CONTACT_EMAIL = "support@socialsupport.gov.ae"
-CONTACT_PHONE = "800-SOCIAL (800-762425)"
+CONTACT_PHONE = "800-SUPPORT (800-7877678)"
 
 FAQS_BY_PHASE: dict[str, list[dict[str, str]]] = {
     "authentication": [

@@ -138,8 +138,14 @@ def _append_assistant_message(response: dict[str, Any]) -> None:
     st.session_state.messages.append(entry)
 
 
-def _handle_submission(result: ChatInputResult) -> None:
-    """Process a chat input: save files, call API, update state."""
+def _handle_submission(result: ChatInputResult, skip_user_message: bool = False) -> None:
+    """Process a chat input: save files, call API, update state.
+
+    Args:
+        result: The chat input result containing text and files.
+        skip_user_message: If True, don't append the user message to history.
+            Used for retry paths where the message was already appended.
+    """
     application_id = st.session_state.get("application_id")
     if not application_id:
         st.error("No active application found. Please log in again.")
@@ -152,7 +158,8 @@ def _handle_submission(result: ChatInputResult) -> None:
         file_count=len(result.files) if result.files else 0,
     )
 
-    _append_user_message(result.text, result.files)
+    if not skip_user_message:
+        _append_user_message(result.text, result.files)
 
     file_paths: list[str] = []
     if result.files:
@@ -192,7 +199,7 @@ def _handle_submission(result: ChatInputResult) -> None:
         else:
             if st.button(action_label, key=f"retry_{retry_count}"):
                 st.session_state.last_retry_count = retry_count + 1
-                # Re-submit the last request
+                # Re-submit the last request without re-appending the user message
                 last_request = st.session_state.get("last_request", {})
                 if last_request:
                     # Create a synthetic ChatInputResult for retry
@@ -200,11 +207,14 @@ def _handle_submission(result: ChatInputResult) -> None:
                         text=last_request.get("message", ""),
                         files=last_request.get("files", []),
                     )
-                    _handle_submission(retry_result)
+                    _handle_submission(retry_result, skip_user_message=True)
                 st.rerun()
         return
 
     _append_assistant_message(response)
+
+    # Reset retry count on success so transient errors don't permanently lock out retries
+    st.session_state.last_retry_count = 0
 
     # Update phase if the backend returned one
     if response.get("phase"):
@@ -221,7 +231,10 @@ def _handle_submission(result: ChatInputResult) -> None:
     # Show document classification confirmations
     if response.get("uploaded_documents"):
         existing_docs = st.session_state.get("uploaded_documents", {})
-        st.session_state.uploaded_documents = response["uploaded_documents"]
+        # Normalize API list response to dict keyed by doc_type
+        st.session_state.uploaded_documents = {
+            doc.get("doc_type", "unknown"): doc for doc in response["uploaded_documents"]
+        }
         for doc in response["uploaded_documents"]:
             doc_type = doc.get("doc_type", "Document")
             file_path = doc.get("file_path", "")
