@@ -194,7 +194,7 @@ All agent state flows through `ApplicantState` (25+ fields TypedDict). LangGraph
 - **Production LLM failover**: Currently binary (Ollama or StreamLake). Add a tiered fallback chain (local Ollama → Azure OpenAI → AWS Bedrock) with automatic health checks and per-request provider selection based on latency and availability.
 - **Real-time document processing queue**: The `document_processing_queue` table exists but is not yet wired to a background worker. Implementing Celery or ARQ workers would allow asynchronous extraction of large PDFs without blocking the chat flow.
 - **Multi-language support**: The chat UI and agent prompts are English-only. Adding Arabic locale support (already partially implemented in `data_generation/` via Mimesis Arabic locale) would require prompt localization and RTL UI adjustments in Streamlit.
-- **Evaluation framework completion**: The 3 eval stubs (`evals/test_extraction_accuracy.py`, `test_validation_rules.py`, `test_eligibility_scoring.py`) need ground-truth datasets and metric calculation. Langfuse datasets can store labeled cases for regression tracking.
+- **Evaluation accuracy datasets**: The 3 accuracy-focused eval stubs (`evals/test_extraction_accuracy.py`, `test_validation_rules.py`, `test_eligibility_scoring.py`) need ground-truth datasets and metric calculation. The four-layer correctness framework (audit, golden dataset, schema contracts, live integration) is complete — 50+ tests validating all 19 agent tools. Langfuse datasets can store labeled cases for regression tracking.
 - **Streamlit performance optimization**: Current chat area uses full-page reruns. Migrating all chat interactions to `@st.fragment` would reduce latency by 60–80% during LLM streaming.
 
 ### API Design Considerations
@@ -214,4 +214,4 @@ All agent state flows through `ApplicantState` (25+ fields TypedDict). LangGraph
 
 ---
 
-*Last updated: 2026-07-26 — Populated architecture diagram, tool justifications, modular workflow details, and future improvements based on full codebase scan.*
+*Last updated: 2026-07-27 — Added four-layer evaluation framework (audit, golden dataset, schema contracts, live integration) validating 19 agent tools across 50+ tests.*

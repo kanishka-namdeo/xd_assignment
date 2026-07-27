@@ -119,8 +119,15 @@ Open `http://localhost:8501` in your browser.
 # All tests with coverage report
 .\.venv\Scripts\pytest.exe tests/ --cov=src --cov-report=html
 
-# Evaluation suite (agent accuracy metrics)
-.\.venv\Scripts\pytest.exe evals/
+# Evaluation suite — four layers:
+#   Layer 1: Tool audit (coverage gaps)
+#   Layer 2: Golden dataset (real documents vs ground truth)
+#   Layer 3: Schema contracts + error handling
+#   Layer 4: Live integration (requires infrastructure + LLM)
+.\.venv\Scripts\pytest.exe evals/ -v --ignore=evals/integration/
+
+# Live integration tests only (requires running infrastructure)
+.\.venv\Scripts\pytest.exe tests/integration/test_live_integration.py -v -m live
 ```
 
 ---
@@ -166,7 +173,7 @@ See [Solution Summary](docs/solution-summary.md) for the full architecture diagr
 | `src/ml/` | ML eligibility model and feature engineering |
 | `ui/` | Streamlit frontend (chat UI, decision cards, phase tracker, document status) |
 | `tests/` | Unit, integration, and E2E tests (~241+ unit tests) |
-| `evals/` | Agent evaluation framework (extraction accuracy, validation rules, eligibility scoring) |
+| `evals/` | Four-layer agent evaluation framework (audit, golden dataset, schema contracts, live integration) — 50+ tests validating 19 agent tools |
 | `alembic/` | SQLAlchemy Alembic migrations (16-table schema) |
 | `docs/` | Design specs, solution summary, Langfuse setup guide, E2E testing trackers |
 | `scripts/` | Utility scripts (test data generation) |
