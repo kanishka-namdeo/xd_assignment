@@ -59,6 +59,42 @@ def _call_chat_api(
             fh.close()
 
 
+def _classify_error(error: Exception) -> tuple[str, str, str]:
+    """Classify an error and return (title, message, action_label)."""
+    if isinstance(error, requests.exceptions.ConnectionError):
+        return (
+            "Connection lost",
+            "We couldn't reach the server. Your progress is saved.",
+            "Retry",
+        )
+    elif isinstance(error, requests.exceptions.Timeout):
+        return (
+            "Request timed out",
+            "This is taking longer than expected. Your documents may still be processing.",
+            "Check Status",
+        )
+    elif isinstance(error, requests.exceptions.HTTPError):
+        status = getattr(error.response, 'status_code', 'unknown') if hasattr(error, 'response') else 'unknown'
+        if isinstance(status, int) and status >= 500:
+            return (
+                "Something went wrong",
+                "This is on our end. Please try again in a moment.",
+                "Retry",
+            )
+        else:
+            return (
+                "Issue with your request",
+                f"Server returned status {status}.",
+                "Retry",
+            )
+    else:
+        return (
+            "Unexpected error",
+            "An unexpected error occurred. Please try again.",
+            "Retry",
+        )
+
+
 def _get_spinner_message(phase: str) -> str:
     """Return a phase-specific spinner message."""
     messages = {
@@ -129,37 +165,43 @@ def _handle_submission(result: ChatInputResult) -> None:
 
     previous_phase = st.session_state.get("current_phase", "intake")
 
+    # Store last request for retry
+    st.session_state.last_request = {
+        "message": result.text,
+        "files": result.files,
+        "retry_count": 0,
+    }
+
     try:
         with st.spinner(_get_spinner_message(previous_phase)):
             response = _call_chat_api(application_id, result.text, file_paths)
-    except requests.ConnectionError:
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": "⚠️ Cannot connect to the server. Please try again later.",
-        })
-        st.rerun()
-        return
-    except requests.Timeout:
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": "⚠️ Request timed out. Please try again.",
-        })
-        st.rerun()
-        return
-    except requests.HTTPError as exc:
-        status = exc.response.status_code if exc.response else "unknown"
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": f"⚠️ Server error ({status}). Please try again.",
-        })
-        st.rerun()
-        return
-    except Exception:
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": "⚠️ An unexpected error occurred. Please try again.",
-        })
-        st.rerun()
+    except Exception as error:
+        title, message, action_label = _classify_error(error)
+
+        st.error(f"**{title}** — {message}")
+
+        retry_count = st.session_state.get("last_retry_count", 0)
+        if retry_count >= 3:
+            st.error(
+                "**Maximum retries reached.** "
+                f"Please contact support with your application ID: {application_id}"
+            )
+            if st.button("Return to Login"):
+                st.session_state.current_phase = "authentication"
+                st.rerun()
+        else:
+            if st.button(action_label, key=f"retry_{retry_count}"):
+                st.session_state.last_retry_count = retry_count + 1
+                # Re-submit the last request
+                last_request = st.session_state.get("last_request", {})
+                if last_request:
+                    # Create a synthetic ChatInputResult for retry
+                    retry_result = ChatInputResult(
+                        text=last_request.get("message", ""),
+                        files=last_request.get("files", []),
+                    )
+                    _handle_submission(retry_result)
+                st.rerun()
         return
 
     _append_assistant_message(response)
