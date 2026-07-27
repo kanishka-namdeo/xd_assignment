@@ -45,13 +45,18 @@ def _call_chat_api(
     url = f"{API_BASE}/api/v1/applications/{application_id}/chat"
 
     form_data = {"text": text}
-    files = []
+    opened_files = []
     for path in file_paths:
-        files.append(("files", (Path(path).name, open(path, "rb"), "application/octet-stream")))
+        fh = open(path, "rb")
+        opened_files.append(("files", (Path(path).name, fh, "application/octet-stream")))
 
-    resp = requests.post(url, data=form_data, files=files, timeout=60)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = requests.post(url, data=form_data, files=opened_files, timeout=60)
+        resp.raise_for_status()
+        return resp.json()
+    finally:
+        for _, (_, fh, _) in opened_files:
+            fh.close()
 
 
 def _get_spinner_message(phase: str) -> str:
@@ -173,12 +178,22 @@ def _handle_submission(result: ChatInputResult) -> None:
 
     # Show document classification confirmations
     if response.get("uploaded_documents"):
+        existing_docs = st.session_state.get("uploaded_documents", {})
         st.session_state.uploaded_documents = response["uploaded_documents"]
         for doc in response["uploaded_documents"]:
-            doc_type = doc.get("document_type", "Document")
+            doc_type = doc.get("doc_type", "Document")
+            file_path = doc.get("file_path", "")
+            doc_name = Path(file_path).name if file_path else "Unknown"
+            is_reupload = doc_type in existing_docs
+
+            if is_reupload:
+                confirmation = f"🔄 Updated: {doc_name} replaces previous {doc_type} upload"
+            else:
+                confirmation = f"✓ {doc_name} uploaded and classified as {doc_type}"
+
             st.session_state.messages.append({
-                "role": "assistant",
-                "content": f"✓ {doc_type} uploaded and classified.",
+                "role": "system",
+                "content": confirmation,
             })
 
     logger.info(
@@ -253,6 +268,17 @@ def render_chat_area() -> None:
                 st.markdown(msg["content"])
                 if msg.get("files"):
                     _render_file_attachments(msg["files"])
+
+        # Render interrupt/clarification data after the message content
+        if msg.get("interrupt"):
+            interrupt = msg["interrupt"]
+            st.info(f"**Question:** {interrupt.get('question', '')}")
+            if interrupt.get("missing_fields"):
+                st.warning("Missing fields: " + ", ".join(interrupt["missing_fields"]))
+            if interrupt.get("missing_documents"):
+                st.warning("Missing documents: " + ", ".join(interrupt["missing_documents"]))
+            if interrupt.get("discrepancies"):
+                render_discrepancy_cards(interrupt["discrepancies"])
 
     result = render_chat_input()
     if result:

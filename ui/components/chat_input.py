@@ -11,6 +11,25 @@ logger = structlog.get_logger(__name__)
 
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]
 
+
+def validate_file_types(files: list) -> tuple[list, list[str]]:
+    """Validate file types and return (valid_files, error_messages)."""
+    valid_files = []
+    errors = []
+
+    for file in files:
+        ext = file.name.split(".")[-1].lower() if "." in file.name else ""
+        if ext not in SUPPORTED_FILE_TYPES:
+            errors.append(
+                f"Unsupported file type '.{ext}'. "
+                f"Accepted formats: {', '.join(s.upper() for s in SUPPORTED_FILE_TYPES)}"
+            )
+        else:
+            valid_files.append(file)
+
+    return valid_files, errors
+
+
 PHASE_PLACEHOLDERS: dict[str, str] = {
     "authentication": "Enter your Emirates ID number...",
     "intake": "Type your answer...",
@@ -66,14 +85,21 @@ def render_chat_input() -> ChatInputResult | None:
     result = ChatInputResult(text=prompt.text or "")
 
     if prompt.files:
-        result.files = [
-            {"name": f.name, "size": f.size, "data": f} for f in prompt.files
-        ]
-        logger.info(
-            "files_uploaded",
-            file_count=len(result.files),
-            file_types=list({Path(f["name"]).suffix.lstrip(".") for f in result.files}),
-        )
+        valid_files, errors = validate_file_types(prompt.files)
+
+        if errors:
+            for error in errors:
+                st.error(error)
+
+        if valid_files:
+            result.files = [
+                {"name": f.name, "size": f.size, "data": f} for f in valid_files
+            ]
+            logger.info(
+                "files_uploaded",
+                file_count=len(result.files),
+                file_types=list({Path(f["name"]).suffix.lstrip(".") for f in result.files}),
+            )
 
     logger.info("message_submitted", has_files=bool(result.files))
 
