@@ -117,6 +117,79 @@ def generate_account(seed: int | None = None, output_dir: str | None = None, ver
     return data
 
 
+async def intake(client: httpx.AsyncClient, app_id: str, profile_dir: str, max_loops: int = 5, verbose: bool = False) -> dict:
+    """Send personal details, loop through interrupts until document_collection phase."""
+    profile_path = Path(profile_dir) / "profile.json"
+    if not profile_path.exists():
+        output("intake", False, error=f"Profile not found: {profile_path}")
+        return {}
+
+    import json
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    applicant = profile["applicant"]
+
+    message = (
+        f"My name is {applicant['full_name_en']}, "
+        f"DOB {applicant['date_of_birth']}, "
+        f"nationality {applicant['nationality']}, "
+        f"phone {applicant['contact_phone']}, "
+        f"email {applicant['contact_email']}, "
+        f"marital status {applicant['marital_status']}, "
+        f"family size {applicant['family_size']}, "
+        f"employment {applicant['employment_status']}, "
+        f"employer {applicant['employer_name']}, "
+        f"occupation {applicant['occupation']}, "
+        f"housing {applicant['housing_status']}, "
+        f"support category {applicant['support_category']}"
+    )
+
+    for attempt in range(max_loops):
+        start = time.perf_counter()
+        if verbose:
+            log_verbose("intake_attempt", attempt=attempt + 1, app_id=app_id)
+
+        resp = await client.post(
+            f"{BASE_URL}/applications/{app_id}/chat",
+            data={"text": message},
+        )
+        latency = (time.perf_counter() - start) * 1000
+
+        if resp.status_code != 200:
+            if verbose:
+                log_verbose("intake_failed", status=resp.status_code, error=resp.text[:200])
+            output("intake", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
+            return {}
+
+        data = resp.json()
+        phase = data.get("phase") or data.get("current_phase")
+        interrupt = data.get("interrupt")
+
+        if verbose:
+            log_verbose("intake_response", phase=phase, has_interrupt=interrupt is not None)
+
+        if phase == "document_collection":
+            output("intake", True, data=data, latency_ms=latency)
+            return data
+
+        if interrupt:
+            # Build clarifying response
+            discrepancies = interrupt.get("discrepancies", [])
+            questions = interrupt.get("questions", []) or interrupt.get("missing_fields", [])
+            parts = []
+            for d in discrepancies:
+                parts.append(f"Regarding {d.get('field', 'the discrepancy')}: the information in my documents is correct.")
+            for q in questions:
+                parts.append(f"Regarding {q}: provided in my application.")
+            message = " ".join(parts) if parts else "All information provided is accurate and complete."
+            continue
+
+        # No interrupt, not at document_collection — send a nudge
+        message = "I confirm all details are accurate. Please proceed."
+
+    output("intake", False, error=f"Did not reach document_collection after {max_loops} attempts", latency_ms=latency)
+    return {}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Social Support Application API client")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print progress to stderr")
@@ -135,6 +208,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, help="Random seed for reproducibility")
     p.add_argument("--output-dir", help="Output directory")
 
+    # intake
+    p = sub.add_parser("intake", help="Send personal details and advance to document collection")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+    p.add_argument("--profile-dir", required=True, help="Path to profile directory")
+    p.add_argument("--max-loops", type=int, default=5, help="Max interrupt resolution attempts")
+
     return parser
 
 
@@ -151,6 +230,9 @@ async def main() -> int:
                 await status(client, args.app_id, verbose)
         elif args.command == "generate-account":
             generate_account(args.seed, args.output_dir, verbose)
+        elif args.command == "intake":
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                await intake(client, args.app_id, args.profile_dir, args.max_loops, verbose)
     return 0
 
 
