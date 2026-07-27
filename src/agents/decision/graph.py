@@ -1,6 +1,6 @@
 """Decision subgraph definition using LangGraph StateGraph."""
 
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 
 from src.agents.decision.nodes import decision_react_node, synthesize_decision_node
 from src.agents.decision.routes import should_use_react
@@ -24,7 +24,8 @@ def build_decision_graph() -> StateGraph:
     workflow.add_node("decision_react", decision_react_node)
     workflow.add_node("decision_deterministic", synthesize_decision_node)
 
-    workflow.set_conditional_entry_point(
+    workflow.add_conditional_edges(
+        START,
         should_use_react,
         {
             "react": "decision_react",
