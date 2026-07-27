@@ -71,9 +71,9 @@ D:\test_misc\xd_assignment
 │   │   ├── eligibility/          # ML prediction + Gate 3
 │   │   ├── decision/             # Synthesis + explanation
 │   │   └── gates/                # Deterministic validation gates
-│   │       ├── completeness.py   # Gate 2 — document completeness
-│   │       ├── document_integrity.py  # Gate 1 — tamper detection
-│   │       ├── eligibility_rules.py   # Gate 3 — hard rules
+│   │       ├── completeness.py   # Gate 2 — document completeness (validation phase)
+│   │       ├── document_integrity.py  # Gate 1 — tamper detection (extraction phase)
+│   │       ├── eligibility_rules.py   # Gate 3 — hard rules (eligibility phase)
 │   │       └── retry_logic.py    # Retry/fallback behavior
 │   │
 │   ├── domain/                   # Layer 3 — Pure business logic (no I/O)
@@ -182,7 +182,7 @@ D:\test_misc\xd_assignment
 
 - All agent state flows through `ApplicantState` (TypedDict, 25+ fields)
 - LangGraph `PostgresSaver` checkpoints state between phases
-- `applications.state_snapshot` JSONB column stores full state
+- `applications.state_snapshot` JSONB column stores full state (distinct from `langgraph_checkpoint`, which stores the raw LangGraph-internal checkpoint binary; `state_snapshot` is the deserialized, application-level state for inspection and recovery)
 - Checkpoint TTL: 30 days (configurable via `CHECKPOINT_TTL_DAYS`)
 
 ### Observability
@@ -200,11 +200,11 @@ D:\test_misc\xd_assignment
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
 | POST | `/api/v1/auth/login` | `auth.py` | Login with Emirates ID |
-| POST | `/api/v1/chat` | `chat.py` | Send chat message, receive streaming response |
+| POST | `/api/v1/applications/{application_id}/chat` | `chat.py` | Send chat message, receive streaming response |
 | GET | `/api/v1/applications` | `applications.py` | List applications |
 | GET | `/api/v1/applications/{id}` | `applications.py` | Get application details |
 | POST | `/api/v1/applications` | `applications.py` | Create new application |
-| POST | `/api/v1/documents/upload` | `documents.py` | Upload document files |
+| POST | `/api/v1/applications/{application_id}/documents` | `documents.py` | Upload document files |
 | GET | `/api/v1/eligibility/{application_id}` | `eligibility.py` | Get eligibility score |
 | GET | `/api/v1/health/langgraph` | `health.py` | Infrastructure health check |
 
