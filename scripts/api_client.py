@@ -358,6 +358,104 @@ async def enablement(client: httpx.AsyncClient, app_id: str, verbose: bool = Fal
     return data
 
 
+async def full_flow(client: httpx.AsyncClient, emirates_id: str, profile_dir: str, verbose: bool = False) -> dict:
+    """Orchestrate the complete 7-phase flow."""
+    summary = {
+        "emirates_id": emirates_id,
+        "profile_dir": profile_dir,
+        "steps": [],
+        "decision": None,
+        "eligibility_score": None,
+    }
+    app_id = None
+
+    # Phase 0: Auth
+    auth_data = await login(client, emirates_id, verbose)
+    summary["steps"].append({"phase": "auth", "success": bool(auth_data.get("application_id"))})
+    if not auth_data.get("application_id"):
+        output("full-flow", False, error="Auth failed", data=summary)
+        return summary
+    app_id = auth_data["application_id"]
+    summary["application_id"] = app_id
+
+    # Phase 1: Intake
+    intake_data = await intake(client, app_id, profile_dir, verbose=verbose)
+    summary["steps"].append({"phase": "intake", "success": bool(intake_data)})
+    if not intake_data:
+        output("full-flow", False, error="Intake failed", data=summary)
+        return summary
+
+    # Phase 2: Upload docs
+    upload_data = await upload_docs(client, app_id, profile_dir, verbose=verbose)
+    summary["steps"].append({"phase": "upload_docs", "success": bool(upload_data)})
+    if not upload_data:
+        output("full-flow", False, error="Upload failed", data=summary)
+        return summary
+
+    # Phase 3: Processing
+    process_data = await process(client, app_id, verbose=verbose)
+    summary["steps"].append({"phase": "processing", "success": bool(process_data)})
+    if not process_data:
+        output("full-flow", False, error="Processing failed", data=summary)
+        return summary
+
+    # Phase 4: Review (if applicable)
+    current_phase = process_data.get("current_phase") or process_data.get("phase")
+    if current_phase == "review":
+        review_data = await review(client, app_id, verbose=verbose)
+        summary["steps"].append({"phase": "review", "success": bool(review_data)})
+        if not review_data:
+            output("full-flow", False, error="Review failed", data=summary)
+            return summary
+
+    # Phase 5: Decision
+    decision_data = await decision(client, app_id, verbose=verbose)
+    summary["steps"].append({"phase": "decision", "success": bool(decision_data)})
+    if decision_data:
+        summary["decision"] = decision_data.get("decision")
+        summary["eligibility_score"] = decision_data.get("eligibility_score")
+
+    # Phase 6: Enablement
+    enablement_data = await enablement(client, app_id, verbose=verbose)
+    summary["steps"].append({"phase": "enablement", "success": bool(enablement_data)})
+
+    output("full-flow", True, data=summary)
+    return summary
+
+
+async def eligibility(client: httpx.AsyncClient, app_id: str, verbose: bool = False) -> dict:
+    """Compute eligibility score and get explanation."""
+    # Compute
+    start = time.perf_counter()
+    compute_resp = await client.post(f"{BASE_URL}/eligibility/{app_id}/compute")
+    compute_latency = (time.perf_counter() - start) * 1000
+
+    if compute_resp.status_code != 200:
+        output("eligibility", False, error=f"Compute HTTP {compute_resp.status_code}: {compute_resp.text[:200]}", latency_ms=compute_latency)
+        return {}
+
+    compute_data = compute_resp.json()
+
+    # Explanation
+    explain_resp = await client.get(f"{BASE_URL}/eligibility/{app_id}/explanation")
+    explain_latency = (time.perf_counter() - start) * 1000
+
+    explanation = ""
+    if explain_resp.status_code == 200:
+        explanation = explain_resp.json().get("explanation", "")
+
+    data = {
+        "eligibility_score": compute_data.get("eligibility_score"),
+        "factors": compute_data.get("factors"),
+        "features_used": compute_data.get("features_used"),
+        "explanation": explanation,
+    }
+    if verbose:
+        log_verbose("eligibility_ok", score=data["eligibility_score"])
+    output("eligibility", True, data=data, latency_ms=explain_latency)
+    return data
+
+
 def _guess_mime(path: Path) -> str:
     suffix = path.suffix.lower()
     return {
@@ -418,6 +516,15 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("enablement", help="Query enablement recommendations")
     p.add_argument("--app-id", required=True, help="Application UUID")
 
+    # full-flow
+    p = sub.add_parser("full-flow", help="Run complete 7-phase flow end-to-end")
+    p.add_argument("--emirates-id", required=True, help="Emirates ID number")
+    p.add_argument("--profile-dir", required=True, help="Path to profile directory")
+
+    # eligibility
+    p = sub.add_parser("eligibility", help="Compute and print eligibility score + explanation")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+
     return parser
 
 
@@ -452,6 +559,12 @@ async def main() -> int:
         elif args.command == "enablement":
             async with httpx.AsyncClient(timeout=120.0) as client:
                 await enablement(client, args.app_id, verbose)
+        elif args.command == "full-flow":
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                await full_flow(client, args.emirates_id, args.profile_dir, verbose)
+        elif args.command == "eligibility":
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                await eligibility(client, args.app_id, verbose)
     return 0
 
 
