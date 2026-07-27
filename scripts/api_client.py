@@ -239,6 +239,125 @@ async def upload_docs(client: httpx.AsyncClient, app_id: str, profile_dir: str, 
     return data
 
 
+async def process(client: httpx.AsyncClient, app_id: str, timeout_seconds: int = 90, verbose: bool = False) -> dict:
+    """Trigger processing and poll until phase exits 'processing'."""
+    start = time.perf_counter()
+    if verbose:
+        log_verbose("process_trigger", app_id=app_id)
+
+    resp = await client.post(
+        f"{BASE_URL}/applications/{app_id}/chat",
+        data={"text": "I have uploaded all required documents. Please proceed with processing."},
+    )
+    if resp.status_code != 200 and verbose:
+        log_verbose("process_trigger_failed", status=resp.status_code)
+
+    poll_interval = 3
+    elapsed = 0
+    while elapsed < timeout_seconds:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+        status_resp = await client.get(f"{BASE_URL}/applications/{app_id}")
+        if status_resp.status_code == 200:
+            status_data = status_resp.json()
+            phase = status_data.get("current_phase", "unknown")
+            if verbose:
+                log_verbose("process_poll", phase=phase, elapsed_s=elapsed)
+
+            if phase != "processing":
+                latency = (time.perf_counter() - start) * 1000
+                if phase in ("review", "decision", "enablement"):
+                    output("process", True, data=status_data, latency_ms=latency)
+                else:
+                    output("process", False, error=f"Unexpected phase: {phase}", latency_ms=latency)
+                return status_data
+
+    latency = (time.perf_counter() - start) * 1000
+    output("process", False, error=f"Timeout after {timeout_seconds}s — still in processing phase", latency_ms=latency)
+    return {}
+
+
+async def review(client: httpx.AsyncClient, app_id: str, max_loops: int = 5, verbose: bool = False) -> dict:
+    """Answer clarification questions and loop until decision phase."""
+    for attempt in range(max_loops):
+        start = time.perf_counter()
+        resp = await client.post(
+            f"{BASE_URL}/applications/{app_id}/chat",
+            data={"text": "All discrepancies are resolved. Please proceed with the decision."},
+        )
+        latency = (time.perf_counter() - start) * 1000
+
+        if resp.status_code != 200:
+            output("review", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
+            return {}
+
+        data = resp.json()
+        phase = data.get("phase") or data.get("current_phase")
+
+        if verbose:
+            log_verbose("review_attempt", attempt=attempt + 1, phase=phase)
+
+        if phase == "decision":
+            output("review", True, data=data, latency_ms=latency)
+            return data
+
+    output("review", False, error=f"Did not reach decision after {max_loops} attempts")
+    return {}
+
+
+async def decision(client: httpx.AsyncClient, app_id: str, timeout_seconds: int = 60, verbose: bool = False) -> dict:
+    """Poll until decision is rendered."""
+    poll_interval = 3
+    elapsed = 0
+    start = time.perf_counter()
+
+    while elapsed < timeout_seconds:
+        resp = await client.get(f"{BASE_URL}/applications/{app_id}")
+        if resp.status_code == 200:
+            data = resp.json()
+            decision = data.get("decision")
+            phase = data.get("current_phase")
+            latency = (time.perf_counter() - start) * 1000
+
+            if verbose:
+                log_verbose("decision_poll", phase=phase, decision=decision, elapsed_s=elapsed)
+
+            if phase == "decision" and decision:
+                output("decision", True, data=data, latency_ms=latency)
+                return data
+            elif phase in ("review", "processing"):
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+                continue
+            else:
+                output("decision", False, error=f"Unexpected phase: {phase}", latency_ms=latency)
+                return {}
+
+    output("decision", False, error=f"Timeout after {timeout_seconds}s — no decision reached")
+    return {}
+
+
+async def enablement(client: httpx.AsyncClient, app_id: str, verbose: bool = False) -> dict:
+    """Query enablement recommendations."""
+    start = time.perf_counter()
+    resp = await client.post(
+        f"{BASE_URL}/applications/{app_id}/chat",
+        data={"text": "What support am I eligible for?"},
+    )
+    latency = (time.perf_counter() - start) * 1000
+
+    if resp.status_code != 200:
+        output("enablement", False, error=f"HTTP {resp.status_code}: {resp.text[:200]}", latency_ms=latency)
+        return {}
+
+    data = resp.json()
+    if verbose:
+        log_verbose("enablement_ok", phase=data.get("phase"), has_recommendations=bool(data.get("enablement_recommendations")))
+    output("enablement", True, data=data, latency_ms=latency)
+    return data
+
+
 def _guess_mime(path: Path) -> str:
     suffix = path.suffix.lower()
     return {
@@ -280,6 +399,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--app-id", required=True, help="Application UUID")
     p.add_argument("--profile-dir", required=True, help="Path to profile directory")
 
+    # process
+    p = sub.add_parser("process", help="Trigger processing and poll until complete")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+    p.add_argument("--timeout-seconds", type=int, default=90, help="Max wait time")
+
+    # review
+    p = sub.add_parser("review", help="Answer clarifications and advance to decision")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+    p.add_argument("--max-loops", type=int, default=5)
+
+    # decision
+    p = sub.add_parser("decision", help="Poll until decision is rendered")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+    p.add_argument("--timeout-seconds", type=int, default=60)
+
+    # enablement
+    p = sub.add_parser("enablement", help="Query enablement recommendations")
+    p.add_argument("--app-id", required=True, help="Application UUID")
+
     return parser
 
 
@@ -302,6 +440,18 @@ async def main() -> int:
         elif args.command == "upload-docs":
             async with httpx.AsyncClient(timeout=120.0) as client:
                 await upload_docs(client, args.app_id, args.profile_dir, verbose)
+        elif args.command == "process":
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                await process(client, args.app_id, args.timeout_seconds, verbose)
+        elif args.command == "review":
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                await review(client, args.app_id, args.max_loops, verbose)
+        elif args.command == "decision":
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                await decision(client, args.app_id, args.timeout_seconds, verbose)
+        elif args.command == "enablement":
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                await enablement(client, args.app_id, verbose)
     return 0
 
 
