@@ -11,14 +11,16 @@ Nodes:
 
 from __future__ import annotations
 
+import json
 import time
-from typing import Any
 
 import structlog
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain.agents import create_agent
 
 from src.agents.gates.completeness import validate_completeness
 from src.agents.state import ApplicantState
+from src.agents.validation.prompts import VALIDATION_SYSTEM_PROMPT
 from src.agents.validation.tools import (
     applicant_clarify_tool,
     cross_document_compare_tool,
@@ -26,15 +28,47 @@ from src.agents.validation.tools import (
     per_document_validation_tool,
     validation_confidence_tool,
 )
+from src.config import settings
+from src.domain.constants.document_types import DEFAULT_REQUIRED_DOCUMENTS, REQUIRED_DOCUMENTS
 
 logger = structlog.get_logger(__name__)
 
 
-def attempt_validation_node(state: ApplicantState) -> dict:
+def _get_llm():
+    """Get LangChain ChatModel for ReAct agent."""
+    try:
+        from langchain_openai import ChatOpenAI
+
+        if settings.LLM_PROVIDER == "streamlake":
+            return ChatOpenAI(
+                model=settings.STREAMLAKE_MODEL,
+                base_url=settings.STREAMLAKE_BASE_URL,
+                api_key=settings.STREAMLAKE_API_KEY.get_secret_value(),
+                temperature=settings.LLM_TEMPERATURE,
+                max_tokens=settings.LLM_MAX_TOKENS,
+            )
+        else:
+            return ChatOpenAI(
+                model=settings.OLLAMA_MODEL,
+                base_url=settings.OLLAMA_BASE_URL,
+                api_key=settings.OLLAMA_API_KEY,
+                temperature=settings.LLM_TEMPERATURE,
+                max_tokens=settings.LLM_MAX_TOKENS,
+            )
+    except ImportError:
+        logger.error("langchain_openai_not_installed")
+        raise
+
+
+async def attempt_validation_node(state: ApplicantState) -> dict:
     """Attempt node: Run initial validation on all extracted documents.
 
-    Executes per-document validation for each document type, then runs
-    cross-document comparisons for identity, name, income, and address consistency.
+    Uses LangGraph's create_react_agent with 5 validation tools:
+    - per_document_validation_tool: Per-document integrity checks
+    - cross_document_compare_tool: Cross-document consistency
+    - discrepancy_classify_tool: OCR error vs real discrepancy
+    - applicant_clarify_tool: Generate clarification questions
+    - validation_confidence_tool: Overall confidence scoring
     """
     start = time.perf_counter()
     logger.info(
@@ -56,61 +90,92 @@ def attempt_validation_node(state: ApplicantState) -> dict:
             "messages": [AIMessage(content="No extracted data available for validation.")],
         }
 
-    per_doc_validation = {}
-    for doc_id, doc_data in extracted_data.items():
-        doc_type = doc_data.get("doc_type", "unknown")
-        result = per_document_validation_tool.invoke({
-            "extracted_data": doc_data,
-            "document_type": doc_type,
-        })
-        per_doc_validation[doc_id] = result
+    try:
+        llm = _get_llm()
+        tools = [
+            per_document_validation_tool,
+            cross_document_compare_tool,
+            discrepancy_classify_tool,
+            applicant_clarify_tool,
+            validation_confidence_tool,
+        ]
 
-    cross_doc_validation = {}
-    comparison_types = ["identity_match", "name_consistency", "income_consistency", "address_consistency"]
-    for comp_type in comparison_types:
-        result = cross_document_compare_tool.invoke({
-            "extracted_data": extracted_data,
-            "comparison_type": comp_type,
-        })
-        cross_doc_validation[comp_type] = result
+        agent = create_agent(llm, tools)
 
-    all_discrepancies = []
-    for comp_type, result in cross_doc_validation.items():
-        if not result.get("overall_match", True):
-            for disc in result.get("discrepancies", []):
-                all_discrepancies.append({
-                    "discrepancy_type": disc.get("type"),
-                    "field": disc.get("field"),
-                    "values": disc.get("values", {}),
-                    "classification": "unclassified",
-                    "confidence": 0.0,
-                    "resolution_status": "unresolved",
-                })
+        validation_context = {
+            "applicant_id": state.get("applicant_id"),
+            "application_id": state.get("application_id"),
+            "support_category": state.get("support_category"),
+            "document_types": list(extracted_data.keys()),
+            "extracted_data_summary": {
+                doc_id: {"doc_type": doc_data.get("doc_type", "unknown")}
+                for doc_id, doc_data in extracted_data.items()
+            },
+        }
 
-    validation_results = {
-        "per_document_validation": per_doc_validation,
-        "cross_document_validation": cross_doc_validation,
-    }
+        messages = [
+            SystemMessage(content=VALIDATION_SYSTEM_PROMPT),
+            HumanMessage(
+                content=(
+                    f"Validate the following documents for application {state.get('application_id')}. "
+                    f"Applicant context: {json.dumps(validation_context, default=str)}"
+                )
+            ),
+        ]
 
-    duration_ms = (time.perf_counter() - start) * 1000
-    logger.info(
-        "attempt_validation_complete",
-        application_id=state.get("application_id"),
-        documents_validated=len(per_doc_validation),
-        discrepancies_found=len(all_discrepancies),
-        duration_ms=round(duration_ms, 2),
-    )
+        result = await agent.ainvoke({"messages": messages})
 
-    message_content = (
-        f"Validation attempt complete. Validated {len(per_doc_validation)} documents. "
-        f"Found {len(all_discrepancies)} discrepancies."
-    )
+        final_message = result["messages"][-1].content if result["messages"] else ""
 
-    return {
-        "validation_results": validation_results,
-        "discrepancies": all_discrepancies,
-        "messages": [AIMessage(content=message_content)],
-    }
+        try:
+            validation_data = json.loads(final_message)
+        except json.JSONDecodeError:
+            validation_data = {
+                "per_document_validation": {},
+                "cross_document_validation": {},
+                "raw_agent_output": True,
+            }
+
+        per_doc_validation = validation_data.get("per_document_validation", {})
+        cross_doc_validation = validation_data.get("cross_document_validation", {})
+        all_discrepancies = validation_data.get("discrepancies", [])
+
+        validation_results = {
+            "per_document_validation": per_doc_validation,
+            "cross_document_validation": cross_doc_validation,
+        }
+
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "attempt_validation_complete",
+            application_id=state.get("application_id"),
+            documents_validated=len(per_doc_validation),
+            discrepancies_found=len(all_discrepancies),
+            duration_ms=round(duration_ms, 2),
+        )
+
+        message_content = (
+            f"Validation attempt complete. Validated {len(per_doc_validation)} documents. "
+            f"Found {len(all_discrepancies)} discrepancies."
+        )
+
+        return {
+            "validation_results": validation_results,
+            "discrepancies": all_discrepancies,
+            "messages": result["messages"],
+        }
+
+    except Exception as e:
+        logger.exception(
+            "attempt_validation_failed",
+            application_id=state.get("application_id"),
+            error=str(e),
+        )
+        return {
+            "validation_results": {},
+            "discrepancies": [],
+            "messages": [AIMessage(content=f"Validation attempt failed: {str(e)}")],
+        }
 
 
 def evaluate_validation_node(state: ApplicantState) -> dict:
@@ -359,6 +424,7 @@ def finalize_validation_node(state: ApplicantState) -> dict:
     return {
         "gate_status": gate_status,
         "gate_errors": gate_errors,
+        "validation_results": {**validation_results, "overall_confidence": overall_confidence},
         "messages": [AIMessage(content=message_content)],
     }
 
@@ -423,12 +489,6 @@ def gate_2_completeness_node(state: ApplicantState) -> dict:
 
 def _get_required_documents(support_category: str | None) -> list[str]:
     """Get list of required documents for a support category."""
-    required = {
-        "divorced": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-        "abandoned": ["emirates_id", "bank_statement", "credit_report", "application_form"],
-        "unknown_parentage": ["emirates_id", "bank_statement", "application_form"],
-        "health_disability": ["emirates_id", "bank_statement", "credit_report", "application_form", "resume"],
-    }
     if support_category is None:
-        return ["emirates_id", "bank_statement", "credit_report", "application_form"]
-    return required.get(support_category.lower(), ["emirates_id", "bank_statement", "credit_report", "application_form"])
+        return DEFAULT_REQUIRED_DOCUMENTS
+    return REQUIRED_DOCUMENTS.get(support_category.lower(), DEFAULT_REQUIRED_DOCUMENTS)

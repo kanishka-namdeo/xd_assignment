@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 import structlog
 
 from src.agents.extraction.parsers import _parse_agent_output as parse_agent_output
@@ -22,7 +22,7 @@ MAX_EXTRACTION_RETRIES = 2
 
 def build_extraction_agent(llm):
     """Create a ReAct agent with extraction tools bound."""
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=ALL_EXTRACTION_TOOLS,
         prompt=EXTRACTION_SYSTEM_PROMPT,

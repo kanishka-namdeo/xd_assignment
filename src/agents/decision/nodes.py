@@ -7,7 +7,7 @@ from typing import Any
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from pydantic import BaseModel, Field, ValidationError
 
 from src.agents.decision.prompts import DECISION_SYSTEM_PROMPT
@@ -94,7 +94,7 @@ async def decision_react_node(state: ApplicantState) -> dict[str, Any]:
             decision_formatting_tool,
         ]
 
-        agent = create_react_agent(llm, tools)
+        agent = create_agent(llm, tools)
 
         applicant_context = _build_applicant_context(state)
 

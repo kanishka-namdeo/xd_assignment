@@ -466,7 +466,7 @@ class TestDecisionReactNode:
         mock_result = {"messages": [MagicMock(), final_msg]}
 
         with patch("src.agents.decision.nodes._get_llm"), \
-             patch("src.agents.decision.nodes.create_react_agent") as mock_create:
+             patch("src.agents.decision.nodes.create_agent") as mock_create:
             mock_agent = AsyncMock()
             mock_agent.ainvoke = AsyncMock(return_value=mock_result)
             mock_create.return_value = mock_agent
@@ -491,7 +491,7 @@ class TestDecisionReactNode:
         mock_result = {"messages": [final_msg]}
 
         with patch("src.agents.decision.nodes._get_llm"), \
-             patch("src.agents.decision.nodes.create_react_agent") as mock_create:
+             patch("src.agents.decision.nodes.create_agent") as mock_create:
             mock_agent = AsyncMock()
             mock_agent.ainvoke = AsyncMock(return_value=mock_result)
             mock_create.return_value = mock_agent
@@ -511,7 +511,7 @@ class TestDecisionReactNode:
 
         mock_result = {"messages": []}
 
-        with patch("src.agents.decision.nodes.create_react_agent") as mock_create:
+        with patch("src.agents.decision.nodes.create_agent") as mock_create:
             mock_agent = AsyncMock()
             mock_agent.ainvoke = AsyncMock(return_value=mock_result)
             mock_create.return_value = mock_agent
