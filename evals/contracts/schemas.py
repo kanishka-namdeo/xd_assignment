@@ -92,7 +92,6 @@ class ValidationConfidenceContract(ValidationOutputContract):
     recommendation: str
     unresolved_count: int
     critical_count: int
-    confidence: float | None = None
 
 
 class EligibilityOutputContract(BaseContract):

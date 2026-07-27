@@ -200,12 +200,12 @@ def validation_confidence_tool(
     if validation_results is None or not isinstance(validation_results, dict):
         duration_ms = (time.perf_counter() - start) * 1000
         logger.warning("tool_invalid_input", tool="validation_confidence", reason="validation_results must be a dict")
-        return {"overall_confidence": 0.0, "recommendation": "escalate", "unresolved_count": 0, "critical_count": 0, "summary": {"error": "validation_results must be a dict"}, "duration_ms": round(duration_ms, 2)}
+        return {"overall_confidence": 0.0, "recommendation": "escalate", "unresolved_count": 0, "critical_count": 0, "confidence": 0.0, "summary": {"error": "validation_results must be a dict"}, "duration_ms": round(duration_ms, 2)}
 
     if discrepancies is None or not isinstance(discrepancies, list):
         duration_ms = (time.perf_counter() - start) * 1000
         logger.warning("tool_invalid_input", tool="validation_confidence", reason="discrepancies must be a list")
-        return {"overall_confidence": 0.0, "recommendation": "escalate", "unresolved_count": 0, "critical_count": 0, "summary": {"error": "discrepancies must be a list"}, "duration_ms": round(duration_ms, 2)}
+        return {"overall_confidence": 0.0, "recommendation": "escalate", "unresolved_count": 0, "critical_count": 0, "confidence": 0.0, "summary": {"error": "discrepancies must be a list"}, "duration_ms": round(duration_ms, 2)}
 
     logger.debug("validation_confidence_start", discrepancy_count=len(discrepancies))
 
@@ -214,8 +214,9 @@ def validation_confidence_tool(
         duration_ms = (time.perf_counter() - start) * 1000
         logger.info("validation_confidence_complete", overall_confidence=round(result["overall_confidence"], 2), recommendation=result["recommendation"], unresolved_count=result["unresolved_count"], critical_count=result["critical_count"], duration_ms=round(duration_ms, 2))
         result["duration_ms"] = round(duration_ms, 2)
+        result["confidence"] = round(result.get("overall_confidence", 0.0), 2)
         return result
     except Exception as e:
         duration_ms = (time.perf_counter() - start) * 1000
         logger.exception("validation_confidence_error", error=str(e), duration_ms=round(duration_ms, 2))
-        return {"overall_confidence": 0.0, "recommendation": "escalate", "unresolved_count": 0, "critical_count": 0, "summary": {"error": str(e)}, "duration_ms": round(duration_ms, 2)}
+        return {"overall_confidence": 0.0, "recommendation": "escalate", "unresolved_count": 0, "critical_count": 0, "confidence": 0.0, "summary": {"error": str(e)}, "duration_ms": round(duration_ms, 2)}

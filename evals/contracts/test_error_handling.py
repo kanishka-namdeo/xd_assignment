@@ -42,6 +42,21 @@ MALFORMED_INPUTS = {
         {"file_path": 12345},
         {},
     ],
+    "table_extract_tool": [
+        {"file_path": ""},
+        {"file_path": None},
+        {},
+    ],
+    "resume_parse_tool": [
+        {"file_path": ""},
+        {"file_path": None},
+        {},
+    ],
+    "xlsx_extract_tool": [
+        {"file_path": ""},
+        {"file_path": None},
+        {},
+    ],
     "confidence_score_tool": [
         {"extracted_data": None, "document_type": "emirates_id"},
         {"extracted_data": "not_a_dict", "document_type": "emirates_id"},
