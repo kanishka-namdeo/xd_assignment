@@ -31,7 +31,7 @@ DEFAULT_REQUIRED_DOCS: list[str] = ["emirates_id", "bank_statement", "credit_rep
 
 try:
     from src.domain.constants.document_types import (
-        DEFAULT_REQUIRED_DOCS as _central_default,
+        DEFAULT_REQUIRED_DOCUMENTS as _central_default,
         REQUIRED_DOCUMENTS as _central_required,
     )
 
@@ -74,6 +74,13 @@ def render_document_progress(support_category: str | None = None) -> None:
 
     if uploaded_count == total_count and total_count > 0:
         st.success("All required documents uploaded!")
+
+    logger.debug(
+        "document_progress_rendered",
+        uploaded=uploaded_count,
+        total=total_count,
+        progress=progress,
+    )
 
 
 def render_document_status(
