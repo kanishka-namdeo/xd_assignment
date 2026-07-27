@@ -122,13 +122,22 @@ GLOSSARY: dict[str, str] = {
 def _generate_summary() -> dict[str, str | int]:
     """Generate an application summary from session state."""
     messages = st.session_state.get("messages", [])
-    documents = st.session_state.get("uploaded_documents", [])
+    if not isinstance(messages, list):
+        messages = []
+
+    documents = st.session_state.get("uploaded_documents", {})
+    if isinstance(documents, list):
+        uploaded_count = len(documents)
+    elif isinstance(documents, dict):
+        uploaded_count = len(documents)
+    else:
+        uploaded_count = 0
+
     current_phase = st.session_state.get("current_phase", "intake")
     applicant_info = st.session_state.get("applicant_info", {}) or {}
 
     user_messages = sum(1 for m in messages if m.get("role") == "user")
     assistant_messages = sum(1 for m in messages if m.get("role") == "assistant")
-    uploaded_count = len(documents) if isinstance(documents, list) else 0
 
     return {
         "current_phase": current_phase,
@@ -144,7 +153,7 @@ def _generate_summary() -> dict[str, str | int]:
 def _render_faqs() -> None:
     """Render the FAQs tab with phase-specific questions."""
     current_phase = st.session_state.get("current_phase", "intake")
-    faqs = FAQS_BY_PHASE.get(current_phase, FAQS_BY_PHASE.get("intake", []))
+    faqs = FAQS_BY_PHASE.get(current_phase) or FAQS_BY_PHASE.get("intake", [])
 
     st.markdown(
         "**FAQs for current phase:** "
