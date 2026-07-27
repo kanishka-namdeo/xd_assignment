@@ -146,8 +146,8 @@ async def run_streaming(
         - decision: (for decision_reached) the decision string
         - score: (for eligibility_scored) the eligibility score
         - interrupt_data: (for interrupt) the interrupt payload
-        - final_state: (for complete) the final graph state
         - timestamp: Unix timestamp of the event
+        - duration_ms: (for complete) total streaming duration
     """
     start_ms = time.perf_counter()
     thread_id = input_data.get("application_id", "default")
@@ -309,7 +309,8 @@ async def _process_stream_event(
                     event_data["score"] = state_update[state_key]
 
                 logger.info(
-                    f"streaming_{event_type}",
+                    "streaming_key_event",
+                    event_type=event_type,
                     thread_id=thread_id,
                     duration_ms=round(duration_ms, 2),
                     **{k: v for k, v in event_data.items() if k not in ("type", "timestamp", "duration_ms")},
