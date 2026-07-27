@@ -123,7 +123,7 @@ Additionally, the UI has zero accessibility features, excluding applicants with 
 - Re-sends the last user message and attached files to the API
 - Shows a loading spinner while retrying
 - Clears the error message on success
-- Maximum 3 retries before suggesting "Start over" option
+- Maximum 3 retries before showing a "Contact support" message with the application ID and a link back to the landing page
 
 **Implementation:**
 - Modify `ui/fragments/chat_area.py` — wrap API call in structured error handler
@@ -179,6 +179,7 @@ Additionally, the UI has zero accessibility features, excluding applicants with 
 - Modify `ui/styles/global.css` — add high-contrast theme, text-size scaling, focus styles
 - Add `aria-label` and `tabindex` to custom HTML in all components
 - Inject accessibility CSS via `st.markdown` in `streamlit_app.py`
+- Modify `ui/streamlit_app.py` — inject accessibility CSS and ARIA live regions
 
 ---
 
@@ -239,8 +240,9 @@ Additionally, the UI has zero accessibility features, excluding applicants with 
 | `ui/components/help_panel.py` | New — Help panel with FAQs, glossary, contact, summary |
 | `ui/styles/global.css` | Modified — high-contrast theme, text-size scaling, focus styles, ARIA support |
 | `ui/app_pages/chat.py` | Modified — integrate accessibility controls and help panel into header |
+| `ui/streamlit_app.py` | Modified — inject accessibility CSS and ARIA live regions |
 
-**Total:** 2 new files, 6 modified files. No backend changes.
+**Total:** 2 new files, 7 modified files. No backend changes.
 
 ---
 
