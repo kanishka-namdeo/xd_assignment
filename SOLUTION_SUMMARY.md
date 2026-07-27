@@ -93,6 +93,8 @@ flowchart TD
     DEC --> SL
 ```
 
+![Architecture Diagram](docs/images/architecture.png)
+
 ### Layer Overview
 
 | Layer | Responsibility | Key Technologies |
