@@ -1,11 +1,9 @@
 """Master StateGraph definition and compilation."""
 
-import psycopg
 import structlog
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
-from psycopg.rows import dict_row
 
+from src.agents.checkpointer import get_checkpointer
 from src.agents.orchestrator.nodes import (
     authentication_node,
     decision_node,
@@ -30,27 +28,6 @@ from src.config import settings
 from src.infrastructure.db.session import get_session_factory
 
 logger = structlog.get_logger(__name__)
-
-# Module-level checkpointer instance (lives for the process lifetime)
-_checkpointer: AsyncPostgresSaver | None = None
-
-
-async def _get_checkpointer() -> AsyncPostgresSaver:
-    """Return a long-lived AsyncPostgresSaver, creating it on first call."""
-    global _checkpointer
-    if _checkpointer is None:
-        # Convert SQLAlchemy async URL to sync PostgreSQL URL
-        db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-        # Replace localhost with 127.0.0.1 to avoid IPv6 hang issues
-        db_url = db_url.replace("localhost", "127.0.0.1")
-        conn = await psycopg.AsyncConnection.connect(
-            db_url,
-            autocommit=True,
-            row_factory=dict_row,
-        )
-        _checkpointer = AsyncPostgresSaver(conn)
-        logger.info("postgres_saver_initialized")
-    return _checkpointer
 
 
 async def build_orchestrator_graph():
@@ -112,7 +89,7 @@ async def build_orchestrator_graph():
     graph.add_edge("decision", "enablement")
     graph.add_edge("enablement", END)
 
-    checkpointer = await _get_checkpointer()
+    checkpointer = await get_checkpointer()
     compiled = graph.compile(checkpointer=checkpointer)
 
     logger.info(

@@ -10,9 +10,9 @@ validation results, discrepancies, and confidence scores.
 from __future__ import annotations
 
 import structlog
-from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 
+from src.agents.checkpointer import get_checkpointer
 from src.agents.state import ApplicantState
 from src.agents.validation.nodes import (
     attempt_validation_node,
@@ -23,12 +23,21 @@ from src.agents.validation.nodes import (
     generate_clarification_node,
 )
 from src.agents.validation.routes import route_after_critique
-from src.config import settings
 
 logger = structlog.get_logger(__name__)
 
+_compiled_graph = None
 
-def build_validation_graph() -> StateGraph:
+
+async def get_validation_graph():
+    """Return the cached compiled validation graph, building it once on first call."""
+    global _compiled_graph
+    if _compiled_graph is None:
+        _compiled_graph = await build_validation_graph()
+    return _compiled_graph
+
+
+async def build_validation_graph():
     """Build the validation agent subgraph with Reflexion reasoning loop.
 
     The graph follows this flow:
@@ -72,8 +81,7 @@ def build_validation_graph() -> StateGraph:
     graph.add_edge("finalize_validation", "gate_2_completeness")
     graph.add_edge("gate_2_completeness", END)
 
-    checkpointer = PostgresSaver.from_conn_string(settings.DATABASE_URL)
-    checkpointer.setup()
+    checkpointer = await get_checkpointer()
     compiled = graph.compile(checkpointer=checkpointer)
 
     logger.info(
@@ -112,7 +120,7 @@ async def run_validation_agent(state: ApplicantState) -> ApplicantState:
         document_count=len(state.get("extracted_data", {})),
     )
 
-    graph = build_validation_graph()
+    graph = await get_validation_graph()
     config = {
         "configurable": {
             "thread_id": state.get("application_id", "default"),
