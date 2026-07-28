@@ -46,7 +46,7 @@ def _file_exists(file_path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 @tool
-def ocr_extract_tool(file_path: Any = None, language: str = "en+ar") -> dict:
+def ocr_extract_tool(file_path: Any = None, language: str = "en") -> dict:
     """Extract text from images using PaddleOCR.
 
     Use for: Scanned documents, images (Emirates ID, application forms).

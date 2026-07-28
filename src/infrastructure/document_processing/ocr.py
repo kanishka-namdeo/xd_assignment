@@ -22,14 +22,14 @@ class OCREngine:
 
     def __init__(
         self,
-        language: str = "ar+en",
+        language: str = "en",
         use_gpu: bool = False,
         enable_hpi: bool = True,
     ):
         """Initialize OCR engine.
         
         Args:
-            language: Language codes (default: "ar+en" for Arabic + English)
+            language: Language code (default: "en" for English; also supports "ar", "ch", etc.)
             use_gpu: Enable GPU acceleration (requires CUDA)
             enable_hpi: Enable high-performance inference
         """
@@ -43,13 +43,19 @@ class OCREngine:
         """Lazy-load OCR instance (thread-safe singleton)."""
         if self._ocr_instance is None:
             from paddleocr import PaddleOCR
+            import logging
             
+            # Suppress PaddleOCR logs (3.0+ removed show_log parameter)
+            paddleocr_logger = logging.getLogger("paddleocr")
+            paddleocr_logger.setLevel(logging.ERROR)
+            
+            # PaddleOCR 3.x API: orientation detection is now a constructor parameter
+            # enable_mkldnn=False bypasses a known PaddlePaddle 3.3.x bug where the
+            # PIR-to-oneDNN converter crashes on pir::ArrayAttribute types
             self._ocr_instance = PaddleOCR(
-                use_angle_cls=True,
                 lang=self.language,
-                use_gpu=self.use_gpu,
-                enable_hpi=self.enable_hpi,
-                show_log=False,
+                use_doc_orientation_classify=True,
+                enable_mkldnn=False,
             )
         return self._ocr_instance
 
@@ -111,43 +117,45 @@ class OCREngine:
         """Synchronous OCR extraction (runs in thread pool)."""
         ocr = self._get_ocr()
         
-        # Run OCR
-        ocr_result = ocr.ocr(
-            str(image_path),
-            cls=detect_orientation,
-        )
+        # PaddleOCR 3.x: orientation detection is set at init, not per-call
+        ocr_results = list(ocr.predict(str(image_path)))
 
-        # Parse PaddleOCR output format
+        # Parse PaddleOCR 3.x output format
         blocks: list[dict[str, Any]] = []
         all_text_parts: list[str] = []
         confidences: list[float] = []
 
-        if ocr_result and len(ocr_result) > 0:
-            for line_group in ocr_result:
-                if not line_group:
-                    continue
+        if ocr_results and len(ocr_results) > 0:
+            for result in ocr_results:
+                # PaddleOCR 3.x returns OCRResult objects with rec_texts, rec_scores, rec_polys
+                rec_texts = result.get('rec_texts', [])
+                rec_scores = result.get('rec_scores', [])
+                rec_polys = result.get('rec_polys', [])
+                
+                for i, text in enumerate(rec_texts):
+                    if not text:
+                        continue
                     
-                for line in line_group:
-                    # PaddleOCR format: [bbox, (text, confidence)]
-                    bbox_coords = line[0]  # [[x0,y0], [x1,y1], [x2,y2], [x3,y3]]
-                    text = line[1][0]
-                    confidence = line[1][1]
-
+                    confidence = rec_scores[i] if i < len(rec_scores) else 0.0
+                    bbox_coords = rec_polys[i] if i < len(rec_polys) else []
+                    
                     # Convert to bounding box format
-                    x_coords = [pt[0] for pt in bbox_coords]
-                    y_coords = [pt[1] for pt in bbox_coords]
+                    if len(bbox_coords) > 0:
+                        x_coords = [pt[0] for pt in bbox_coords]
+                        y_coords = [pt[1] for pt in bbox_coords]
+                        
+                        block = {
+                            "text": text,
+                            "confidence": float(confidence),
+                            "bbox": {
+                                "x0": min(x_coords),
+                                "y0": min(y_coords),
+                                "x1": max(x_coords),
+                                "y1": max(y_coords),
+                            },
+                        }
+                        blocks.append(block)
                     
-                    block = {
-                        "text": text,
-                        "confidence": float(confidence),
-                        "bbox": {
-                            "x0": min(x_coords),
-                            "y0": min(y_coords),
-                            "x1": max(x_coords),
-                            "y1": max(y_coords),
-                        },
-                    }
-                    blocks.append(block)
                     all_text_parts.append(text)
                     confidences.append(confidence)
 

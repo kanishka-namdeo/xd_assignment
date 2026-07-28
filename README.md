@@ -14,7 +14,7 @@ This project addresses the AI Case Study requirements for Social Support Applica
 | 2 | **Code Quality** — clean, modular, documented | `src/` (four-layer architecture), `tests/` (241+ unit tests), `docs/adr/` (6 architecture decision records), [AGENTS.md](AGENTS.md) (DOX framework), `docs/architecture.md` (10-section architecture doc) |
 | 3 | **Solution Design** — scalable architecture, AI/ML principles | [SOLUTION_SUMMARY.md](SOLUTION_SUMMARY.md) (tool justification, modular breakdown), `docs/architecture.md` (data flow, state persistence), `docs/adr/` (design decisions), `src/ml/feature_engineering.py` (ML pipeline) |
 | 4 | **Integration** — effective component integration, APIs, data pipelines | `src/api/v1/` (FastAPI endpoints), `src/infrastructure/db/` (PostgreSQL), `src/infrastructure/graph/` (Neo4j), `src/infrastructure/vector/` (Qdrant), `src/infrastructure/observability/` (Langfuse tracing) |
-| 5 | **Demo UI** — user-friendly | `ui/` (Streamlit chat UI), `docs/images/ui-*.png` (screenshots), [Demo Walkthrough](#demo-walkthrough) section below |
+| 5 | **Demo UI** — user-friendly | `ui/` (Streamlit chat UI with decision cards, phase tracker, accessibility controls, Help panel), [Demo Walkthrough](#demo-walkthrough) section below |
 | 6 | **Problem-Solving** — challenges addressed | [Challenges & Solutions](#challenges--solutions) section below |
 | 7 | **Communication** — clear, thorough documentation | [README.md](README.md), [SOLUTION_SUMMARY.md](SOLUTION_SUMMARY.md), `docs/architecture.md`, `docs/adr/` (6 ADRs), `docs/superpowers/specs/` (12 design specs), [AGENTS.md](AGENTS.md) (DOX framework) |
 
@@ -94,12 +94,16 @@ Follow these steps to reproduce the full 7-phase flow in <5 minutes:
 
 6. **Open the application:**
    Navigate to `http://localhost:8501` in your browser.
+   
+   ![Landing Page](docs/images/01-landing.png)
 
 7. **Login with a test Emirates ID:**
    Enter a test Emirates ID number (e.g., `784-1990-1234567-8`).
 
 8. **Complete the intake phase:**
    The orchestrator agent will collect 13 applicant fields (name, DOB, marital status, children, residency, employment, salary, etc.) via chat.
+   
+   ![Intake Phase](docs/images/ui-intake.png)
 
 9. **Upload documents:**
    Upload documents from the generated test data:
@@ -107,9 +111,18 @@ Follow these steps to reproduce the full 7-phase flow in <5 minutes:
    data/test_applicants/divorced_employed_good_credit/
    ```
    Files: `emirates_id_front.png`, `emirates_id_back.png`, `bank_statement.pdf`, `credit_report.pdf`, `application_form.png`
+   
+   ![Document Upload](docs/images/ui-upload.png)
 
 10. **Review the decision:**
     After processing, review the decision card with approval outcome, explanation, and enablement recommendations.
+    
+    ![Decision Phase](docs/images/ui-decision.png)
+
+11. **View enablement recommendations:**
+    If approved, you'll receive personalized enablement recommendations and support package details.
+    
+    ![Enablement Phase](docs/images/ui-enablement.png)
 
 ### Expected Outcome
 

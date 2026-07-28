@@ -21,6 +21,7 @@ Mirror `src/` structure in `tests/unit/`:
 - `tests/unit/utils/test_state_size.py` — 102 lines: State size estimation/monitoring tests
 - `tests/unit/utils/test_circuit_breaker.py` — Circuit breaker pattern tests
 - `tests/unit/utils/test_error_classifier.py` — Error classification tests
+- `tests/unit/utils/test_retry.py` — Retry decorator with exponential backoff tests
 
 ### Agent Test Files
 The following agent test suites cover the core LangGraph agents:
@@ -37,6 +38,10 @@ The following agent test suites cover the core LangGraph agents:
 
 ### Domain Test Files
 - `tests/unit/domain/test_emirates_id.py` — 9 tests covering Emirates ID generation and validation
+
+### Service Test Files
+- `tests/unit/services/test_agent_runner.py` — Agent runner sync/streaming execution tests
+- `tests/unit/services/test_chat_service.py` — Chat service orchestrator invocation and state persistence tests
 
 ### Gate Test Files
 Deterministic validation gates are tested separately under `tests/unit/agents/gates/`:
@@ -61,6 +66,9 @@ Root-level test scripts (not part of the formal test suite):
 - `tests/live_test.py` — Live system testing
 - `tests/db_layer_test.py` — Database layer testing
 - `tests/live_api_test.py` — Live API testing
+- `tests/e2e_api_test.py` — E2E API testing
+- `tests/test_edge_cases.py` — Edge case testing
+- `tests/test_logging.py` — Logging validation tests
 
 ### Test Fixtures
 Shared fixtures in `tests/conftest.py`:

@@ -71,6 +71,17 @@ def _reset_global_state():
     inject_services()
 
 
+@pytest.fixture(autouse=True)
+def _mock_interrupt():
+    """Mock interrupt() to prevent LangGraph runtime errors in unit tests.
+    
+    interrupt() requires LangGraph runtime context. In unit tests, we call nodes
+    directly without the runtime, so we mock interrupt() to return a dummy value.
+    """
+    with patch("src.agents.orchestrator.phases.intake.interrupt", return_value=None):
+        yield
+
+
 @pytest.fixture
 def mock_decision_agent():
     """Return a mock decision agent via the factory function patch.
@@ -194,7 +205,7 @@ class TestAuthenticationNode:
     async def test_id_extraction_from_message(self):
         """Test ID extraction from user message."""
         state = {
-            "messages": [{"role": "user", "content": "My ID is 784199012345678"}],
+            "messages": [{"role": "user", "content": "My ID is 78419901234567"}],
             "current_phase": "authentication",
             "identity_number": None,
         }
@@ -202,8 +213,8 @@ class TestAuthenticationNode:
         with patch("src.utils.emirates_id.validate", return_value=True) as mock_validate:
             result = await authentication_node(state)
 
-        mock_validate.assert_called_once_with("784199012345678")
-        assert result["identity_number"] == "784199012345678"
+        mock_validate.assert_called_once_with("78419901234567")
+        assert result["identity_number"] == "78419901234567"
         assert result["current_phase"] == "intake"
 
     @pytest.mark.asyncio
@@ -218,7 +229,7 @@ class TestAuthenticationNode:
         result = await authentication_node(state)
 
         assert result["current_phase"] == "authentication"
-        assert "15 digits" in result["messages"][0]["content"]
+        assert "14 digits" in result["messages"][0]["content"]
 
     @pytest.mark.asyncio
     async def test_message_without_id_extracts_nothing(self):

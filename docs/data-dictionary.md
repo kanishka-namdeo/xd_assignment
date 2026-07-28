@@ -4,14 +4,14 @@ UAE Social Support Application — document processing and applicant workflow da
 
 ## Overview
 
-The schema consists of **16 tables** organized into four logical groups:
+The schema consists of **17 tables** organized into four logical groups:
 
 | Group | Tables | Purpose |
 |-------|--------|---------|
 | Core | `applicants`, `applications`, `documents` | Applicant identity, workflow state, uploaded documents |
 | Extraction | `emirates_id_data`, `bank_statement_data`, `bank_statement_transactions`, `credit_report_data`, `credit_facilities`, `resume_data`, `resume_work_experience`, `assets_liabilities_data`, `application_form_data`, `document_extraction_fields` | Per-document-type extracted structured data |
 | Validation | `cross_document_validations` | Cross-document consistency checks and discrepancy tracking |
-| Infrastructure | `document_audit_log`, `document_processing_queue` | Audit trail and async processing queue |
+| Infrastructure | `document_audit_log`, `document_processing_queue`, `checkpoints` | Audit trail, async processing queue, LangGraph checkpoint state |
 
 All tables use `UUID` primary keys (generated via `uuid4`). Timestamps use `TIMESTAMPTZ` with `server_default=now()`. Flexible semi-structured data is stored in `JSONB` columns with GIN indexes where queried.
 
@@ -645,6 +645,26 @@ Work queue for asynchronous document processing. Supports retry logic and priori
 
 ---
 
+### `checkpoints`
+
+LangGraph checkpoint state for session persistence and crash recovery. Managed by `langgraph-checkpoint-postgres`. Each row stores a serialized checkpoint for a specific thread and checkpoint ID.
+
+| Column | Type | Constraints | Business Rules |
+|--------|------|-------------|----------------|
+| `thread_id` | `TEXT` | NOT NULL, indexed | LangGraph thread identifier (application session) |
+| `checkpoint_id` | `TEXT` | NOT NULL, indexed | Unique checkpoint identifier within thread |
+| `checkpoint` | `JSONB` | NOT NULL | Serialized checkpoint state (binary LangGraph format) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, default `now()`, indexed | Checkpoint creation timestamp (added in migration `20260727002`) |
+| `expires_at` | `TIMESTAMPTZ` | nullable | Expiration timestamp for TTL cleanup |
+
+**Indexes:**
+- `idx_checkpoints_thread_id` — B-tree on `thread_id`
+- `idx_checkpoints_created_at` — B-tree on `created_at` (for TTL cleanup)
+
+**Note:** This table is managed internally by LangGraph's `AsyncPostgresSaver`. The `CheckpointerManager` runs periodic TTL cleanup to delete checkpoints older than `CHECKPOINT_TTL_DAYS` (default 30). The `applications.state_snapshot` JSONB column stores the deserialized, application-level state separately for inspection and recovery.
+
+---
+
 ## Cross-Cutting Concerns
 
 ### PII Columns
@@ -691,10 +711,12 @@ All frequently queried JSONB columns have GIN indexes.
 
 | Migration ID | Name | Description |
 |--------------|------|-------------|
-| `20260725001` | `add_document_processing_schema` | Initial schema — creates all 16 tables with indexes, constraints, and relationships |
+| `20260725001` | `add_document_processing_schema` | Initial schema — creates 16 tables with indexes, constraints, and relationships |
 | `20260726001` | `add_state_snapshot` | Adds `state_snapshot` JSONB column to `applications` for LangGraph state persistence |
 | `20260727001` | `add_validation_confidence` | Adds `validation_confidence` FLOAT column to `applications` to track validation agent confidence |
-| `20260727002` | `add_checkpoint_created_at` | Adds `created_at` TIMESTAMPTZ column to LangGraph checkpoints table for TTL cleanup support |
+| `20260727002` | `add_checkpoint_created_at` | Adds `created_at` TIMESTAMPTZ column to `checkpoints` table for TTL cleanup support |
+
+**Note:** The `checkpoints` table is created by `langgraph-checkpoint-postgres` during the initial migration setup (not by an explicit SQLAlchemy model). It is counted as the 17th table in the schema.
 
 Migration files are located in `alembic/versions/`.
 
@@ -722,5 +744,7 @@ SQLAlchemy ORM models are located in `src/infrastructure/db/models/`:
 | `CrossDocumentValidation` | `validation.py` | `cross_document_validations` |
 | `AuditLog` | `audit.py` | `document_audit_log` |
 | `ProcessingQueue` | `audit.py` | `document_processing_queue` |
+
+**Note:** The `checkpoints` table is managed by `langgraph-checkpoint-postgres` and does not have a corresponding SQLAlchemy ORM model in the application. It is accessed directly by LangGraph's `AsyncPostgresSaver`.
 
 All models are exported from `src/infrastructure/db/models/__init__.py`.

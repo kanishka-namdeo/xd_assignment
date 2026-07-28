@@ -550,7 +550,7 @@ All of the following must be true before declaring done:
 Before ending the session:
 
 1. **Update tracker** — Fill in any remaining empty sections. Ensure the test matrix has a final status for every row.
-2. **Update `docs/solution-summary.md`** — If any bug revealed an architectural issue (e.g., agent graph wiring, service layer gap, missing infrastructure integration), add a note to the "Future improvements" or "Known limitations" section.
+2. **Update `SOLUTION_SUMMARY.md`** (at repo root) — If any bug revealed an architectural issue (e.g., agent graph wiring, service layer gap, missing infrastructure integration), add a note to the "Future improvements" or "Known limitations" section.
 3. **Update `docs/e2e-testing-tracker.md`** — If this session fixed bugs or validated new flows, append a row to the existing E2E testing tracker with date, scope, and outcome.
 4. **Leave infrastructure running** — Do not stop Docker containers or app processes. The user may want to inspect the running state.
 5. **Report** — Summarize for the user:

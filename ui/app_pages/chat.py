@@ -71,7 +71,9 @@ def _render_header() -> None:
         unsafe_allow_html=True,
     )
 
-    render_document_summary(st.session_state.get("uploaded_documents"))
+    uploaded_docs = st.session_state.get("uploaded_documents", {})
+    docs_list = list(uploaded_docs.values()) if isinstance(uploaded_docs, dict) else uploaded_docs
+    render_document_summary(docs_list)
 
     # Accessibility controls in header
     render_accessibility_controls()

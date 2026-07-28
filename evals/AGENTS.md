@@ -45,12 +45,19 @@ Four-layer evaluation framework for measuring agent tool correctness and accurac
 - Golden dataset tests validate against real document data
 - Live integration tests require infrastructure (PostgreSQL, Neo4j, Qdrant, Ollama/StreamLake)
 
+### Additional Evaluation Scripts
+The following evaluation scripts exist at the `evals/` root level but are not part of the four-layer framework:
+- `evals/test_eligibility_scoring.py` — Eligibility scoring validation
+- `evals/test_extraction_accuracy.py` — Extraction accuracy validation
+- `evals/test_validation_rules.py` — Validation rules validation
+- `evals/live_e2e_report.json` — Runtime artifact from live E2E testing (not a test file)
+
 ## Work Guidance
 
 ### Running Evaluations
 ```bash
 # All layers (non-live)
-.\.venv\Scripts\pytest.exe evals/ -v --ignore=evals/integration/
+.\.venv\Scripts\pytest.exe evals/ -v
 
 # Specific layer
 .\.venv\Scripts\pytest.exe evals/audit/ -v

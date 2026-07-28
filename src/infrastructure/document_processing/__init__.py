@@ -104,7 +104,7 @@ async def _extract_emirates_id(
     """Extract Emirates ID data from image or PDF."""
     # Use OCR for image files
     if file_path.suffix.lower() in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
-        ocr = OCREngine(language="ar+en", use_gpu=kwargs.get("use_gpu", False))
+        ocr = OCREngine(language="en", use_gpu=kwargs.get("use_gpu", False))
         ocr_result = await ocr.extract(file_path)
         
         # Parse OCR text to extract fields
@@ -219,7 +219,7 @@ async def _extract_application_form(
     """Extract application form data from image or PDF."""
     # Use OCR for image files
     if file_path.suffix.lower() in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
-        ocr = OCREngine(language="ar+en", use_gpu=kwargs.get("use_gpu", False))
+        ocr = OCREngine(language="en", use_gpu=kwargs.get("use_gpu", False))
         ocr_result = await ocr.extract(file_path)
         
         extracted = _parse_application_form_from_text(ocr_result.text)

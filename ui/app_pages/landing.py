@@ -153,9 +153,12 @@ def handle_login() -> None:
                 for doc in docs:
                     if "document_type" in doc and "doc_type" not in doc:
                         doc["doc_type"] = doc["document_type"]
-                st.session_state.uploaded_documents = docs
+                # Normalize to dict keyed by doc_type
+                st.session_state.uploaded_documents = {
+                    doc.get("doc_type", "unknown"): doc for doc in docs
+                }
             else:
-                st.session_state.uploaded_documents = []
+                st.session_state.uploaded_documents = {}
             logger.info(
                 "login_resumed",
                 applicant_id=data["applicant_id"],
@@ -166,7 +169,7 @@ def handle_login() -> None:
             )
         else:
             st.session_state.state_snapshot = None
-            st.session_state.uploaded_documents = []
+            st.session_state.uploaded_documents = {}
             st.session_state.messages = [
                 {
                     "role": "assistant",

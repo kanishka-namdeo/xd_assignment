@@ -80,7 +80,7 @@ async def test_checkpointer_manager_deletes_old_checkpoints():
         mock_conn, mock_cursor = _make_mock_conn()
         mock_connect.return_value = mock_conn
 
-        mock_cursor.fetchone.return_value = (5,)
+        mock_cursor.fetchone.return_value = {"count": 5}
         mock_cursor.rowcount = 5
 
         manager = CheckpointerManager()
@@ -104,7 +104,7 @@ async def test_checkpointer_manager_respects_ttl():
         mock_conn, mock_cursor = _make_mock_conn()
         mock_connect.return_value = mock_conn
 
-        mock_cursor.fetchone.return_value = (0,)
+        mock_cursor.fetchone.return_value = {"count": 0}
 
         manager = CheckpointerManager()
         manager.ttl_days = 7
@@ -131,7 +131,7 @@ async def test_checkpointer_manager_no_old_checkpoints():
         mock_conn, mock_cursor = _make_mock_conn()
         mock_connect.return_value = mock_conn
 
-        mock_cursor.fetchone.return_value = (0,)
+        mock_cursor.fetchone.return_value = {"count": 0}
 
         manager = CheckpointerManager()
         await manager._run_cleanup()
@@ -197,7 +197,7 @@ async def test_cleanup_loop_runs_cleanup_then_waits():
         mock_conn, mock_cursor = _make_mock_conn()
         mock_connect.return_value = mock_conn
 
-        mock_cursor.fetchone.return_value = (0,)
+        mock_cursor.fetchone.return_value = {"count": 0}
 
         manager = CheckpointerManager()
         manager.cleanup_interval_minutes = 0  # 0 minutes = immediate re-run

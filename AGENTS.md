@@ -121,7 +121,7 @@ Before writing any implementation plan, agents MUST complete the following steps
 
 1. **Codebase scan**: Launch parallel `generalPurpose` subagents, each covering a distinct area relevant to the task (e.g., architecture, data models, API layer, UI, tests). Each subagent returns a summary of relevant files, patterns, contracts, and dependencies. Do not skip this step or do it sequentially — parallelism is required for speed.
 2. **Web search**: Run web searches for current best practices, latest library versions, API changes, and relevant patterns before planning. This is mandatory regardless of topic — do not skip based on staleness heuristics. Plans must be informed by current external knowledge, not just training data.
-3. **Thorough planning checklist**: Complete the systematic area checklist, dependency tracing, data flow walkthrough, and gap analysis pass defined in `.cursor/rules/thorough-planning.mdc`. This ensures all affected layers, services, and cross-cutting concerns are identified.
+3. **Thorough planning checklist**: Complete the systematic area checklist, dependency tracing, data flow walkthrough, and gap analysis pass defined in the `thorough-planning` skill (slim rule at `.cursor/rules/thorough-planning.mdc`). This ensures all affected layers, services, and cross-cutting concerns are identified.
 
 ### Superpowers Workflow Behavior
 
@@ -160,10 +160,11 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 - **Document Processing**: PDF, OCR, table extraction, image processing patterns. See `.cursor/rules/document-processing.mdc` for pymupdf4llm, paddleocr, camelot-py, ReportLab, Pillow patterns.
 - **Testing Patterns**: pytest configuration, async testing, mocking strategies. See `.cursor/rules/testing.mdc` for testing conventions.
 - **Logging Practices**: Structured logging with `structlog`, PII redaction, timing. Use `structlog.get_logger(__name__)`, log events in snake_case, include `duration_ms` for timed operations. See `.cursor/rules/logging-practices.mdc` for full requirements.
-- **Proactive Web Search Guidelines**: Research-based web search guidelines for library docs, best practices, and version-specific APIs. See `.cursor/rules/web-search-guidelines.mdc` for when to search.
+- **Proactive Web Search Guidelines**: Research-based web search guidelines for library docs, best practices, and version-specific APIs. Core rules in `.cursor/rules/web-search-guidelines.mdc`; full staleness thresholds and MCP preferences in the `web-search-guidelines` skill.
 - **PostgreSQL Patterns**: Async connection management with asyncpg/psycopg, query optimization, transaction patterns. See `.cursor/rules/postgres.mdc` for conventions.
-- **Process Management Safety**: Targeted process termination - never kill all processes of a type. Use port-based or PID-based killing. See `.cursor/rules/process-management.mdc` for safe patterns.
-- **Thorough Planning Checklist**: Before writing any implementation plan, agents MUST complete a systematic area checklist, dependency tracing, data flow walkthrough, and gap analysis pass. See `.cursor/rules/thorough-planning.mdc` for the full checklist and plan output requirements.
+- **Process Management Safety**: Targeted process termination - never kill all processes of a type. Core safety rules in `.cursor/rules/process-management.mdc`; detailed patterns (Docker management, restart sequences, protected service discovery, verification scripts) in the `process-management` skill.
+- **Thorough Planning Checklist**: Before writing any implementation plan, agents MUST complete a systematic area checklist, dependency tracing, data flow walkthrough, and gap analysis pass. Core requirement in `.cursor/rules/thorough-planning.mdc`; full checklist and plan output requirements in the `thorough-planning` skill.
+- **Temporary Files Rule**: Never commit temporary test scripts, debug files, or scratch files. Core rule in `.cursor/rules/temporary-files.mdc`; prevention commands and `.gitignore` patterns in the `temporary-files` skill.
 
 ### Cursor Terminology Reference
 

@@ -1,8 +1,15 @@
 """LangGraph agent execution wrapper."""
 
+import asyncio
+import sys
 import time
 from collections.abc import AsyncIterator
 from typing import Any
+
+# Windows asyncio event loop compatibility for psycopg async
+# Must be set before any async code runs
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import structlog
 from langgraph.types import Command

@@ -23,10 +23,14 @@ Runtime storage for synthetic test applicant data used in development, testing, 
   - `consistency_report.json` - Cross-document validation results
 
 ### Test Profiles
-Three representative applicant scenarios:
+Three canonical representative applicant scenarios (golden dataset):
 1. `divorced_employed_good_credit` → Expected: approved
 2. `abandoned_unemployed_poor_credit` → Expected: manual_review
 3. `unknown_parentage_self_employed_borderline` → Expected: soft_decline
+
+Additional test profiles generated during development and testing:
+- `applicant_7537`, `applicant_7538`, `applicant_7539` — Fresh generated accounts with full document sets and extracted data
+- `custom_test_profile` — Custom test profile for ad-hoc testing
 
 ### Fresh Accounts
 Generated via `scripts/generate_fresh_account.py` for live E2E testing. Contains full document sets with fresh Emirates IDs, bank statements, credit reports, resumes, assets/liabilities, and application forms.

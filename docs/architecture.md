@@ -55,7 +55,8 @@ D:\test_misc\xd_assignment
 │   │   ├── validation_service.py # Cross-document validation
 │   │   ├── eligibility_service.py# ML eligibility scoring
 │   │   ├── decision_service.py   # Final decision synthesis
-│   │   └── extraction_pipeline.py# Document processing pipeline
+│   │   ├── extraction_pipeline.py# Document processing pipeline
+│   │   └── agent_runner.py       # Agent execution wrapper (sync + streaming)
 │   │
 │   ├── agents/                   # Layer 3 — LangGraph agents
 │   │   ├── state.py              # ApplicantState TypedDict (25+ fields)
@@ -103,6 +104,8 @@ D:\test_misc\xd_assignment
 │   │   ├── error_classifier.py   # ErrorType enum (TRANSIENT, BUSINESS_RULE, LLM_ERROR, PROGRAMMING)
 │   │   ├── state_size.py         # State size monitoring (warns at 50 KB)
 │   │   ├── emirates_id.py        # Luhn algorithm, ID generation/validation
+│   │   ├── file_hash.py          # SHA-256 file hashing for integrity checks
+│   │   ├── validators.py         # Shared validation helpers
 │   │   └── tool_helpers.py       # Shared helper functions for agent tools
 │   │
 │   ├── ml/                       # ML models and feature engineering
@@ -110,6 +113,8 @@ D:\test_misc\xd_assignment
 │   │   └── feature_engineering.py # Demographic/financial features
 │   │
 │   ├── data_generation/          # Synthetic test data generation
+│   │   ├── cli.py                # CLI entry point for data generation
+│   │   ├── __main__.py           # python -m src.data_generation support
 │   │   └── (profile, applicant, document generators)
 │   │
 │   ├── config.py                 # Global settings (pydantic-settings BaseSettings)
@@ -122,8 +127,8 @@ D:\test_misc\xd_assignment
 │   ├── fragments/                # @st.fragment wrapped sections
 │   └── styles/                   # Global CSS
 │
-├── tests/                        # Test suite (~241+ unit tests)
-│   ├── unit/                     # Mocked dependencies
+├── tests/                        # Test suite (~241+ unit tests, plus service and utils tests)
+│   ├── unit/                     # Mocked dependencies (agents, services, domain, gates, utils)
 │   ├── integration/              # Real databases, mocked LLM
 │   ├── e2e/                      # Full stack
 │   └── system/                   # System-level tests
@@ -131,7 +136,8 @@ D:\test_misc\xd_assignment
 ├── evals/                        # Four-layer evaluation framework
 │   ├── audit/                    # Tool inventory and coverage
 │   ├── golden/                   # Ground-truth dataset validation
-│   └── contracts/                # Pydantic contract conformance
+│   ├── contracts/                # Pydantic contract conformance
+│   └── (root-level eval scripts: test_extraction_accuracy.py, test_validation_rules.py, test_eligibility_scoring.py)
 │
 ├── alembic/                      # Database migrations
 │   └── versions/                 # 4 migrations (initial schema, state_snapshot, validation_confidence, checkpoint_created_at)
@@ -141,11 +147,18 @@ D:\test_misc\xd_assignment
 │   ├── superpowers/              # Design specs and plans
 │   └── solution-summary.md       # Living 10-page architecture summary
 │
-├── scripts/                      # Utility scripts
-│   └── generate_test_data.py     # 3 synthetic test profiles
+├── scripts/                      # Utility scripts (28 scripts across 10 categories)
+│   ├── Data Generation: generate_test_data.py, generate_fresh_account.py
+│   ├── E2E Testing: e2e_test.py, final_e2e_test.py, continue_e2e_test.py, stream_e2e_test.py, browser_e2e_test.py
+│   ├── Database: check_db.py, check_db_column.py, check_column.py, check_migration.py, add_validation_confidence_column.py, apply_checkpoint_migration.py
+│   ├── Demo/Smoke: demo_smoke_test.py, quick_smoke_test.py
+│   ├── API Testing: test_fastapi.py, test_persist.py, api_client.py
+│   ├── Streaming: long_stream_test.py, stream_upload_test.py, upload_and_process.py
+│   ├── Enablement Debugging: debug_enablement.py, test_enablement_detailed.py
+│   └── MCP/Credential: mcp_callback.py, scrub_github_pat.py, scrub_mcp.py, scrub_mcp_tree.py
 │
 └── data/                         # Runtime test data storage
-    └── test_applicants/          # 3 cross-document-consistent profiles
+    └── test_applicants/          # 7 profiles (3 canonical golden + 4 additional generated accounts)
 ```
 
 ---

@@ -73,6 +73,8 @@ Services MUST NOT implement document-type-specific logic inline. Instead:
 - `AuthService` (`auth_service.py`): Login/session management, applicant/application creation
 - `ChatService` (`chat_service.py`): Orchestrator invocation, state persistence, interrupt handling, decision persistence
 - `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, `ExtractionService`
+- `ExtractionPipeline` (`extraction_pipeline.py`): Orchestrated document extraction pipeline with gate integration
+- `AgentRunner` (`agent_runner.py`): Agent execution wrapper with sync and streaming modes
 
 ### ORM Model Directory at Scale
 When a model module exceeds 5 models with wide schemas, use a subdirectory:
@@ -141,6 +143,9 @@ Shared utilities in `src/utils/`:
 | `state_size.py` | State size estimation and monitoring; warns when state exceeds `STATE_SIZE_WARNING_KB` threshold |
 | `error_classifier.py` | Error classification (`ErrorType` enum: TRANSIENT, BUSINESS_RULE, LLM_ERROR, PROGRAMMING) |
 | `tool_helpers.py` | Shared helper functions for agent tools |
+| `emirates_id.py` | Emirates ID Luhn validation and generation utilities |
+| `file_hash.py` | File hashing utilities for integrity checks |
+| `validators.py` | Shared validation helpers |
 
 **Circuit Breaker**: Opens after N failures, blocks calls until recovery timeout, then tests with single call. Used in `processing.py` and `decision.py` to prevent cascading failures when subgraphs consistently fail.
 
@@ -184,6 +189,10 @@ Synthetic data generation for testing and development. All generators produce sc
 - `consistency.py`: Cross-document validation (identity, income, address, employment)
 - `templates/`: Bank layouts and form templates
 - `utils.py`: Luhn algorithm, IBAN generation, UAE-specific helpers
+- `cli.py`: Command-line interface entry point for data generation
+- `__main__.py`: Python module entry point (`python -m src.data_generation`)
+- `templates/bank_templates.py`: Bank template definitions
+- `templates/form_templates.py`: Application form template definitions
 
 **Consistency rules**: All generators accept an ApplicantProfile seed. identity_number, full_name, date_of_birth, monthly_salary, and employer_name are synchronized across all documents.
 
@@ -199,7 +208,7 @@ Synthetic data generation for testing and development. All generators produce sc
 7. Wire into orchestrator graph in `agents/orchestrator/graph.py`
 
 ### Adding a New API Endpoint
-1. Create endpoint in `api/v1/` (applications.py, auth.py, chat.py, documents.py, eligibility.py)
+1. Create endpoint in `api/v1/` (applications.py, auth.py, chat.py, documents.py, eligibility.py, health.py)
 2. Keep route thin: parse input, call service, return response
 3. Implement business logic in corresponding `services/` file
 4. Add Pydantic schemas in `domain/schemas/`

@@ -5,74 +5,8 @@ alwaysApply: true
 
 # Thorough Planning Checklist
 
-Before writing any implementation plan, agents MUST complete the following steps to ensure all affected areas are identified and included.
+Before writing any implementation plan, agents MUST complete the thorough planning checklist covering: parallel codebase scan, systematic area checklist (10 areas), dependency tracing, data flow walkthrough, and gap analysis.
 
-## Mandatory Pre-Planning Steps
+Every implementation plan MUST include: affected areas table, dependency map, per-layer changes, gap analysis, and risk notes.
 
-### 1. Parallel Codebase Scan
-Launch parallel `generalPurpose` subagents, each covering a distinct area relevant to the task. Do not skip this step or do it sequentially — parallelism is required for speed. Each subagent must return:
-- Relevant files in their area
-- Patterns and contracts found
-- Dependencies on other areas
-
-### 2. Systematic Area Checklist
-Verify each of the following areas explicitly. Do not skip any area without stating why it is not affected:
-
-| Area | Check |
-|------|-------|
-| API routes | New endpoints? Modified request/response schemas? Route registration? |
-| Services | Business logic changes? New service methods? Error handling? |
-| Agents | New nodes, routes, tools, prompts? State model changes? Graph wiring? |
-| Domain | New parsing logic, scoring, comparison functions? Constants? Schemas? |
-| Infrastructure | DB schema changes? New repositories? LLM config? Vector/graph DB? |
-| Tests | Unit, integration, E2E, gate tests affected? Fixtures need updating? |
-| Migrations | Schema evolution needed? Alembic revision? |
-| Config | New env vars? Settings changes? `.env` updates? |
-| Logging/observability | New events to instrument? PII concerns? Timing requirements? |
-| Docs | AGENTS.md updates? solution-summary.md changes? README updates? |
-
-### 3. Dependency Tracing
-For each module you plan to change, trace the full dependency chain:
-- What imports this module?
-- What does this module import?
-- What callers depend on this module's interface?
-- What cross-cutting concerns (logging, config, middleware) touch this module?
-
-List all affected files discovered through dependency tracing.
-
-### 4. Data Flow Walkthrough
-Trace the data path from entry point to response. For each hop, identify the layer and what changes:
-- Entry point (API route, chat input, scheduled job)
-- Service layer processing
-- Agent orchestration
-- Domain logic execution
-- Infrastructure persistence/retrieval
-- Response formatting
-
-### 5. Gap Analysis Pass
-After drafting the plan, do a dedicated pass asking:
-- What areas did I not mention?
-- What breaks if only the listed changes are made?
-- What implicit assumptions am I making about unchanged areas?
-- Are there side effects (logging, metrics, cache invalidation) not covered?
-
-Include the gap analysis output in the plan.
-
-## Plan Output Requirements
-
-Every implementation plan MUST include:
-
-1. **Affected areas table** — List each area from the checklist above with status: `changed`, `not affected`, or `needs investigation`
-2. **Dependency map** — List of files affected through import/call chains
-3. **Per-layer changes** — What changes in each layer (API, services, agents, domain, infrastructure)
-4. **Gap analysis** — Areas not covered and why
-5. **Risk notes** — What could break if the plan is incomplete
-
-## Verification
-
-Before claiming a plan is complete, verify:
-- [ ] All 10 areas from the checklist were explicitly considered
-- [ ] Dependency tracing was performed for each changed module
-- [ ] Data flow was traced end-to-end
-- [ ] Gap analysis was performed and documented
-- [ ] The plan includes all required output sections
+For the full checklist and plan output requirements, read the `thorough-planning` skill.
