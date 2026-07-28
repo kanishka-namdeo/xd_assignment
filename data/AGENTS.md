@@ -1,7 +1,7 @@
 # Test Data Storage
 
 ## Purpose
-Runtime storage for synthetic test applicant data used in development, testing, and evaluation. Contains cross-document-consistent profiles for validating the application workflow.
+Runtime storage for synthetic test applicant data used in development, testing, and evaluation. The data directory is populated by running the generation scripts and is not committed to version control.
 
 ## Ownership
 - Primary: Development Team
@@ -9,21 +9,22 @@ Runtime storage for synthetic test applicant data used in development, testing, 
 
 ## Local Contracts
 
-### Directory Structure
-- `test_applicants/` - Individual applicant profile directories (golden dataset)
-- `fresh_accounts/` - Fresh test accounts with generated documents for E2E testing
-- `uploads/` - Temporary uploads during testing sessions
-- Each profile directory contains:
-  - `profile.json` - Structured applicant data and expected decision
-  - `emirates_id_front.png` / `emirates_id_back.png` - Emirates ID card images
-  - `bank_statement.pdf` - Bank statement PDF
-  - `credit_report.pdf` - AECB-format credit report
-  - `application_form.png` - Handwritten application form image
-  - `*_data.json` - Extracted document data for each document type
-  - `consistency_report.json` - Cross-document validation results
+### Directory Contents
+The `data/` directory contains runtime artifacts generated during testing sessions:
 
-### Test Profiles
-Three canonical representative applicant scenarios (golden dataset):
+- `current_app_id.txt` — Tracks the current application ID for the active test session
+- `.test_session.json` — Test session metadata and state
+
+### Generated Data (Not Committed)
+The following directories are created at runtime by the generation scripts and are gitignored:
+
+- `test_applicants/` — Individual applicant profile directories (golden dataset)
+  - Each profile directory contains: `profile.json`, Emirates ID images, bank statement PDF, credit report PDF, application form image, extracted document data JSONs, and consistency report
+- `fresh_accounts/` — Fresh test accounts with generated documents for E2E testing
+- `uploads/` — Temporary uploads during testing sessions
+
+### Test Profiles (Golden Dataset)
+Three canonical representative applicant scenarios:
 1. `divorced_employed_good_credit` → Expected: approved
 2. `abandoned_unemployed_poor_credit` → Expected: manual_review
 3. `unknown_parentage_self_employed_borderline` → Expected: soft_decline

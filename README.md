@@ -103,7 +103,7 @@ Follow these steps to reproduce the full 7-phase flow in <5 minutes:
 8. **Complete the intake phase:**
    The orchestrator agent will collect 13 applicant fields (name, DOB, marital status, children, residency, employment, salary, etc.) via chat.
    
-   ![Intake Phase](docs/images/ui-intake.png)
+   ![Intake Phase](docs/images/03-intake.png)
 
 9. **Upload documents:**
    Upload documents from the generated test data:
@@ -117,7 +117,7 @@ Follow these steps to reproduce the full 7-phase flow in <5 minutes:
 10. **Review the decision:**
     After processing, review the decision card with approval outcome, explanation, and enablement recommendations.
     
-    ![Decision Phase](docs/images/ui-decision.png)
+    ![Decision Phase](docs/images/09-decision.png)
 
 11. **View enablement recommendations:**
     If approved, you'll receive personalized enablement recommendations and support package details.

@@ -23,7 +23,7 @@ Four-layer evaluation framework for measuring agent tool correctness and accurac
 - Produces `evals/audit/report.json` with `tool_inventory`, `coverage_map`, `gaps`
 
 ### Layer 2 — Golden Dataset Validation
-- Uses `data/test_applicants/profiles.json` with 3 cross-document-consistent profiles:
+- Golden profiles are defined as fixtures in `evals/conftest.py`:
   - `divorced_employed_good_credit` → expected: approved
   - `abandoned_unemployed_poor_credit` → expected: manual_review
   - `unknown_parentage_self_employed_borderline` → expected: soft_decline

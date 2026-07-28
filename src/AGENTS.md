@@ -174,6 +174,14 @@ Shared checkpointer factory in `src/agents/checkpointer.py`:
 ### Logging Conventions
 Logging conventions are defined in `.cursor/rules/logging-practices.mdc`. All modules must follow structured logging with `structlog`, PII redaction, and `duration_ms` timing.
 
+### ML Model Layer
+Scikit-learn eligibility model for ML-based scoring.
+
+|| Module | Purpose |
+||--------|---------|
+|| `ml/eligibility_model.py` | Scikit-learn model for eligibility prediction |
+|| `ml/feature_engineering.py` | Feature engineering for ML eligibility scoring |
+
 ### Data Generation Module
 Synthetic data generation for testing and development. All generators produce schema-compliant output with cross-document consistency.
 

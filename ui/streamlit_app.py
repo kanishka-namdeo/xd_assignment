@@ -33,7 +33,7 @@ st.set_page_config(
     layout="centered",
 )
 
-logger.info("streamlit_app_starting", page_title="Social Support Application")
+# logger.info("streamlit_app_starting", page_title="Social Support Application")
 
 login_page = st.Page(landing.render, title="Login")
 app_page = st.Page(chat.render, title="Application", url_path="/application")

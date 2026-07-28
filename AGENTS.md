@@ -168,17 +168,17 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 ### Cursor Terminology Reference
 
-| Term | Definition |
-|------|------------|
-| **Agent** | Cursor's AI assistant that completes tasks autonomously in Agent Mode |
-| **Agent Mode** | Primary mode for file edits, terminal commands, iterating until task done |
-| **Project Rules** | `.mdc` files in `.cursor/rules/` with YAML frontmatter (`alwaysApply`, `globs`, `description`) |
-| **alwaysApply: true** | Rule applies to every Agent session; ignores `globs` and `description` |
-| **Context Window** | Token limit for conversation; Rules are injected at start |
-| **@-mention** | Syntax to reference files (`@filename.ts`) or rules explicitly in chat |
-| **MCP Server** | Model Context Protocol server providing external tools (e.g., context7 for docs) |
-| **Subagents** | Specialized agents with isolated context for parallel or context-heavy work |
-| **Skills** | Dynamic capabilities in `SKILL.md` files, invoked via `/` commands |
+|| Term | Definition |
+||------|------------|
+|| **Agent** | Cursor's AI assistant that completes tasks autonomously in Agent Mode |
+|| **Agent Mode** | Primary mode for file edits, terminal commands, iterating until task done |
+|| **Project Rules** | `.mdc` files in `.cursor/rules/` with YAML frontmatter (`alwaysApply`, `globs`, `description`) |
+|| **alwaysApply: true** | Rule applies to every Agent session; ignores `globs` and `description` |
+|| **Context Window** | Token limit for conversation; Rules are injected at start |
+|| **@-mention** | Syntax to reference files (`@filename.ts`) or rules explicitly in chat |
+|| **MCP Server** | Model Context Protocol server providing external tools (e.g., context7 for docs) |
+|| **Subagents** | Specialized agents with isolated context for parallel or context-heavy work |
+|| **Skills** | Dynamic capabilities in `SKILL.md` files, invoked via `/` commands |
 
 
 
@@ -186,7 +186,7 @@ All rules use `alwaysApply: true` and apply to every Agent session:
 
 ### `src/` - Application Source Code
 
-Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models, stubs) and `utils/` (shared utilities including error classifier, retry logic, circuit breaker, state size monitoring).
+Main application package implementing the UAE Social Support Application system. Four-layer architecture: API routes (`api/`) → Services (`services/`) → Agents/Domain (`agents/`, `domain/`) → Infrastructure (`infrastructure/`). Contains 5 LangGraph agents (orchestrator, extraction, validation, eligibility, decision), 4 deterministic gates, FastAPI REST endpoints, PostgreSQL/Neo4j/Qdrant data layer, document processing pipeline, ML eligibility model, and synthetic data generation module. Also includes `ml/` (ML models: eligibility_model.py, feature_engineering.py) and `utils/` (shared utilities including error classifier, retry logic, circuit breaker, state size monitoring).
 
 Services layer includes `AuthService` (login/session management), `ChatService` (orchestrator invocation, state persistence, interrupt handling), `ApplicationService`, `DocumentService`, `EligibilityService`, `ValidationService`, `DecisionService`, `ExtractionService`, and `ExtractionPipeline` (orchestrated extraction with gate integration). Domain constants are centralized in `domain/constants/` (document_types, validation_rules, eligibility_rules). Infrastructure includes shared checkpointer factory with TTL cleanup, health check endpoint at `/api/v1/health/langgraph`, and streaming support via `run_streaming()`. Utilities layer includes `emirates_id.py`, `file_hash.py`, and `validators.py` in addition to the core utilities.
 
@@ -210,10 +210,7 @@ SQLAlchemy Alembic migrations for PostgreSQL schema evolution. 4 migrations: ini
 
 ### `data/` - Test Data Storage
 
-Runtime storage for synthetic test applicant data used in development and testing. Contains:
-- `test_applicants/` - Golden dataset with 3 cross-document-consistent profiles (approved, manual_review, soft_decline) plus additional generated accounts (applicant_7537, applicant_7538, applicant_7539, custom_test_profile)
-- `fresh_accounts/` - Fresh generated accounts for E2E testing with full document sets
-- `uploads/` - Temporary upload storage during test sessions
+Runtime storage for synthetic test applicant data used in development and testing. The directory is populated by running generation scripts and contains runtime artifacts (`current_app_id.txt`, `.test_session.json`). The `test_applicants/`, `fresh_accounts/`, and `uploads/` subdirectories are created at runtime by the generation scripts and are gitignored.
 
 Populated by running `scripts/generate_test_data.py` and `scripts/generate_fresh_account.py`.
 
@@ -227,9 +224,9 @@ Development and operational scripts for data generation, testing, and maintenanc
 - **API Testing**: `test_fastapi.py`, `test_persist.py`, `api_client.py`
 - **Streaming**: `long_stream_test.py`, `stream_upload_test.py`, `upload_and_process.py`
 - **Enablement Debugging**: `debug_enablement.py`, `test_enablement_detailed.py`
-- **MCP/Credential Management**: `mcp_callback.py`, `scrub_github_pat.py`, `scrub_mcp.py`, `scrub_mcp_tree.py`
+- **UI Screenshot Capture**: `capture_ui_screenshots.py`
 
-28 scripts total.
+24 scripts total.
 
 ### `SOLUTION_SUMMARY.md` - Solution Summary
 
@@ -237,7 +234,7 @@ First-class deliverable for the AI Case Study submission. Contains high-level ar
 
 ### `docs/` - Documentation
 
-Design specifications, architecture decisions, and durable project documentation. Contains 12 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns, agent tools evaluation, LangGraph configuration audit, UI/UX polish, demo readiness fixes, API-only agent skill), 6 active implementation plans, Langfuse v4 setup guide, architecture decision records (6 ADRs), and `SOLUTION_SUMMARY.md` (at repo root) — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers documenting comprehensive test results.
+Design specifications, architecture decisions, and durable project documentation. Contains 13 design specs (tech stack, document processing schema, fake data generation, applicant user flow, agent specification, LangGraph implementation patterns, agent tools evaluation, LangGraph configuration audit, UI/UX polish, demo readiness fixes, API-only agent skill, architecture documentation suite, repo presentation enhancement), 7 active implementation plans, Langfuse v4 setup guide, architecture decision records (6 ADRs), and `SOLUTION_SUMMARY.md` (at repo root) — a living 10-page solution summary maintained by agents throughout the project. Also includes E2E testing trackers documenting comprehensive test results, and a `images/` subdirectory with UI screenshots and architecture diagrams.
 
 ### `reference_docs/` - Reference Documentation
 

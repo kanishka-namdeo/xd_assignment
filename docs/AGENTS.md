@@ -36,8 +36,10 @@ Design specs produced by the brainstorming workflow. Each spec is a durable arti
 || `2026-07-27-ui-ux-polish-design.md` | UI/UX polish improvements: high contrast mode, text size accessibility, help panel, phase guidance, document status cards |
 || `2026-07-27-demo-readiness-fixes-design.md` | Demo readiness bug fixes: 8 bugs/architecture violations fixes + verification plan for full 7-phase flow |
 || `2026-07-28-api-only-agent-skill-design.md` | API-only agent skill: Cursor Agent Skill for full FastAPI backend interaction without Streamlit UI, automated testing, demo/smoke testing, data generation |
+|| `2026-07-27-architecture-documentation-suite-design.md` | Architecture documentation suite: 10-section architecture doc, security-privacy doc, API design catalog, data dictionary |
+|| `2026-07-28-repo-presentation-enhancement-design.md` | Repository presentation enhancement: README, SOLUTION_SUMMARY, project structure cleanup |
 
-12 design specs total.
+13 design specs total.
 
 ### `superpowers/plans/` - Implementation Plans
 Active implementation plans tracking ongoing work items.
@@ -49,8 +51,10 @@ Active implementation plans tracking ongoing work items.
 || `2026-07-27-demo-readiness-fixes.md` | Demo readiness bug fixes and improvements |
 || `2026-07-27-langgraph-configuration-audit.md` | LangGraph configuration audit implementation |
 || `2026-07-28-api-only-agent-skill.md` | API-only agent skill implementation: Cursor Agent Skill and CLI script for full FastAPI backend interaction |
+|| `2026-07-27-ui-ux-polish.md` | UI/UX polish implementation: high contrast mode, text size accessibility, help panel, phase guidance |
+|| `2026-07-28-repo-presentation-enhancement.md` | Repository presentation enhancement: README, SOLUTION_SUMMARY, project structure |
 
-6 active plans.
+7 active plans.
 
 ### Solution Summary
 Living design artifact maintained by agents throughout the project. Moved to repo root as `SOLUTION_SUMMARY.md` per case study submission requirements.
@@ -96,3 +100,6 @@ Architecture decision records (ADRs) documenting key technical decisions.
 || `0004-local-llm-fallback.md` | Local LLM fallback with Ollama |
 || `0005-structured-logging-pii.md` | Structured logging with PII redaction |
 || `0006-dox-framework.md` | DOX framework for project documentation |
+
+### Images
+UI screenshots and architecture diagrams used in documentation. Contains ~20 PNG files capturing phase-by-phase UI states, error states, and the high-level architecture diagram.
