@@ -155,6 +155,7 @@ screenshots/
 # ====================
 data/test_applicants/
 data/fresh_accounts/
+data/current_app_id.txt
 evals/data/
 
 .superpowers/
